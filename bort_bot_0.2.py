@@ -50,15 +50,17 @@ def timestamp_to_datetime(unix_time):
 
 def init_keys():
     # load openai api key
-    with open("/Users/alexthe5th/Documents/API Keys/OpenAI_API_key.txt", "r") as f:
-        key = f.read().strip()
-        openai.api_key = key
-        os.environ["OPENAI_API_KEY"] = key
+    if not os.environ.get('OPENAI_API_KEY'):
+        with open("/Users/alexthe5th/Documents/API Keys/OpenAI_API_key.txt", "r") as f:
+            key = f.read().strip()
+            openai.api_key = key
+            os.environ["OPENAI_API_KEY"] = key
 
     # load discord auth token
-    auth = load_json('/Users/alexthe5th/Documents/API Keys/Discord_auth.json')
-    os.environ['DISCORD_TOKEN'] = auth['token'].strip()
-    os.environ['DISCORD_CHAN_ID'] = auth['chan_id'].strip()
+    if not os.environ.get('BORT_DISCORD_TOKEN'):
+        auth = load_json('/Users/alexthe5th/Documents/API Keys/Discord_auth.json')
+        os.environ['BORT_DISCORD_TOKEN'] = auth['token'].strip()
+        os.environ['BORT_DISCORD_CHAN_ID'] = auth['chan_id'].strip()
 
 
 def gpt3_embedding(content, engine='text-embedding-ada-002'):
@@ -237,7 +239,7 @@ if __name__ == "__main__":
 
     @bort.event
     async def on_ready():
-        channel = bort.get_channel(int(os.environ['DISCORD_CHAN_ID']))
+        channel = bort.get_channel(int(os.environ['BORT_DISCORD_CHAN_ID']))
         if channel is not None:
             await channel.send(f"{bort.user} has connected to Discord!")
         else:
@@ -256,4 +258,4 @@ if __name__ == "__main__":
             await message.channel.send(output['output'])
 
 
-    bort.run(os.environ['DISCORD_TOKEN'])
+    bort.run(os.environ['BORT_DISCORD_TOKEN'])
