@@ -1,42 +1,5 @@
 """
-An attempt to rewrite bort_bot_0.1.py using langchain, asyncio and the async_openai library.
-The old version throws a lot of discord errors about heartbeat timeouts.
-I'll still use the RAVEN style memory, but try to make it run asynchronously in the background.
-
-from langchain docs:
-import time
-import asyncio
-
-from langchain.llms import OpenAI
-
-def generate_serially():
-    llm = OpenAI(temperature=0.9)
-    for _ in range(10):
-        resp = llm.generate(["Hello, how are you?"])
-        print(resp.generations[0][0].text)
-
-
-async def async_generate(llm):
-    resp = await llm.agenerate(["Hello, how are you?"])
-    print(resp.generations[0][0].text)
-
-
-async def generate_concurrently():
-    llm = OpenAI(temperature=0.9)
-    tasks = [async_generate(llm) for _ in range(10)]
-    await asyncio.gather(*tasks)
-
-
-s = time.perf_counter()
-# If running this outside of Jupyter, use asyncio.run(generate_concurrently())
-await generate_concurrently()
-elapsed = time.perf_counter() - s
-print('\033[1m' + f"Concurrent executed in {elapsed:0.2f} seconds." + '\033[0m')
-
-s = time.perf_counter()
-generate_serially()
-elapsed = time.perf_counter() - s
-print('\033[1m' + f"Serial executed in {elapsed:0.2f} seconds." + '\033[0m')
+BORT is a discord chatbot that uses embeddings and semantic search to simulate a long term memory
 """
 
 import asyncio
@@ -45,15 +8,10 @@ import discord
 import os
 import openai
 import json
-import re
 from time import time, sleep
 from uuid import uuid4
 import numpy as np
 from numpy.linalg import norm
-from langchain.llms import OpenAI
-from langchain import PromptTemplate
-from langchain.agents import agent
-from langchain.chains import ConversationChain
 
 
 def load_json(filepath):
@@ -101,11 +59,6 @@ def init_keys():
     auth = load_json('/Users/alexthe5th/Documents/API Keys/Discord_auth.json')
     os.environ['DISCORD_TOKEN'] = auth['token'].strip()
     os.environ['DISCORD_CHAN_ID'] = auth['chan_id'].strip()
-
-
-def init_llm():
-    llm = OpenAI(temperature=0.9)
-    return llm
 
 
 def gpt3_embedding(content, engine='text-embedding-ada-002'):
@@ -263,20 +216,23 @@ def save_response(response):
 
 
 def process_message(discord_message):
-    message = f'{discord_message.author.name}: {discord_message.content}'
-    message_vector = gpt3_embedding(message)
-    save_message(discord_message, message_vector)
-    notes, recent = load_memories(message_vector)
-    prompt = generate_prompt(notes, recent, message)
-    response = gpt3_completion(prompt)
-    save_response(response)
-    return {'output': response, 'user': discord_message.author.name}
+    try:
+        message = f'{discord_message.author.name}: {discord_message.content}'
+        message_vector = gpt3_embedding(message)
+        save_message(discord_message, message_vector)
+        notes, recent = load_memories(message_vector)
+        prompt = generate_prompt(notes, recent, message)
+        response = gpt3_completion(prompt)
+        save_response(response)
+        return {'output': response, 'user': discord_message.author.name}
+    except Exception as oops:
+        print('Error processing message:', oops)
+        return {'output': 'Error processing message: %s' % oops, 'user': discord_message.author.name}
 
 
 if __name__ == "__main__":
     init_keys()
     bort = init_discord_client()
-
 
 
     @bort.event
@@ -298,5 +254,6 @@ if __name__ == "__main__":
             # use asyncio to run the process_message function in the background
             output = await asyncio.get_event_loop().run_in_executor(None, process_message, message)
             await message.channel.send(output['output'])
+
 
     bort.run(os.environ['DISCORD_TOKEN'])
