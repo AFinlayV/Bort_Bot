@@ -48,19 +48,19 @@ def timestamp_to_datetime(unix_time):
     return datetime.datetime.fromtimestamp(unix_time).strftime("%A, %B %d, %Y at %I:%M%p %Z")
 
 
-def init_keys():
-    # load openai api key
-    if not os.environ.get('OPENAI_API_KEY'):
-        with open("/Users/alexthe5th/Documents/API Keys/OpenAI_API_key.txt", "r") as f:
-            key = f.read().strip()
-            openai.api_key = key
-            os.environ["OPENAI_API_KEY"] = key
-
-    # load discord auth token
-    if not os.environ.get('BORT_DISCORD_TOKEN'):
-        auth = load_json('/Users/alexthe5th/Documents/API Keys/Discord_auth.json')
-        os.environ['BORT_DISCORD_TOKEN'] = auth['token'].strip()
-        os.environ['BORT_DISCORD_CHAN_ID'] = auth['chan_id'].strip()
+# def init_keys():
+#     # load openai api key
+#     if not os.environ.get('OPENAI_API_KEY'):
+#         with open("/Users/alexthe5th/Documents/API Keys/OpenAI_API_key.txt", "r") as f:
+#             key = f.read().strip()
+#             openai.api_key = key
+#             os.environ["OPENAI_API_KEY"] = key
+#
+#     # load discord auth token
+#     if not os.environ.get('BORT_DISCORD_TOKEN'):
+#         auth = load_json('/Users/alexthe5th/Documents/API Keys/Discord_auth.json')
+#         os.environ['BORT_DISCORD_TOKEN'] = auth['token'].strip()
+#         os.environ['BORT_DISCORD_CHAN_ID'] = auth['chan_id'].strip()
 
 
 def gpt3_embedding(content, engine='text-embedding-ada-002'):
