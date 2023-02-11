@@ -239,7 +239,7 @@ if __name__ == "__main__":
 
     @bort.event
     async def on_ready():
-        channel = bort.get_channel(int(os.environ['BORT_DISCORD_CHAN_ID']))
+        channel = bort.get_channel(int(os.environ.get['BORT_DISCORD_CHAN_ID']))
         if channel is not None:
             await channel.send(f"{bort.user} has connected to Discord!")
         else:
@@ -258,4 +258,4 @@ if __name__ == "__main__":
             await message.channel.send(output['output'])
 
 
-    bort.run(os.environ['BORT_DISCORD_TOKEN'])
+    bort.run(os.environ.get['BORT_DISCORD_TOKEN'])
