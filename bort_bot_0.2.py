@@ -233,7 +233,7 @@ def process_message(discord_message):
 
 
 if __name__ == "__main__":
-    init_keys()
+    #init_keys()
     bort = init_discord_client()
 
 
