@@ -94,36 +94,42 @@ def fetch_memories(vector, logs, count):
 
 
 def load_convo():
-    files = os.listdir('nexus')
-    files = [i for i in files if '.json' in i]  # filter out any non-JSON files
-    result = list()
-    for file in files:
-        data = load_json('nexus/%s' % file)
-        result.append(data)
-    ordered = sorted(result, key=lambda d: d['time'], reverse=False)  # sort them all chronologically
-    return ordered
+    try:
+        files = os.listdir('nexus')
+        files = [i for i in files if '.json' in i]  # filter out any non-JSON files
+        result = list()
+        for file in files:
+            data = load_json('nexus/%s' % file)
+            result.append(data)
+        ordered = sorted(result, key=lambda d: d['time'], reverse=False)  # sort them all chronologically
+        return ordered
+    except:
+        return "No Conversation Found"
 
 
 def summarize_memories(memories):  # summarize a block of memories into one payload
-    memories = sorted(memories, key=lambda d: d['time'], reverse=False)  # sort them chronologically
-    block = ''
-    identifiers = list()
-    timestamps = list()
-    for mem in memories:
-        block += mem['message'] + '\n\n'
-        identifiers.append(mem['uuid'])
-        timestamps.append(mem['time'])
-    block = block.strip()
-    prompt = open_file('prompt_notes.txt').replace('<<INPUT>>', block)
-    # TODO - do this in the background over time to handle huge amounts of memories
-    notes = gpt3_completion(prompt)
-    #   SAVE NOTES
-    vector = gpt3_embedding(block)
-    info = {'notes': notes, 'uuids': identifiers, 'times': timestamps, 'uuid': str(uuid4()), 'vector': vector,
-            'time': time()}
-    filename = 'notes_%s.json' % time()
-    save_json('internal_notes/%s' % filename, info)
-    return notes
+    try:
+        memories = sorted(memories, key=lambda d: d['time'], reverse=False)  # sort them chronologically
+        block = ''
+        identifiers = list()
+        timestamps = list()
+        for mem in memories:
+            block += mem['message'] + '\n\n'
+            identifiers.append(mem['uuid'])
+            timestamps.append(mem['time'])
+        block = block.strip()
+        prompt = open_file('prompt_notes.txt').replace('<<INPUT>>', block)
+        # TODO - do this in the background over time to handle huge amounts of memories
+        notes = gpt3_completion(prompt)
+        #   SAVE NOTES
+        vector = gpt3_embedding(block)
+        info = {'notes': notes, 'uuids': identifiers, 'times': timestamps, 'uuid': str(uuid4()), 'vector': vector,
+                'time': time()}
+        filename = 'notes_%s.json' % time()
+        save_json('internal_notes/%s' % filename, info)
+        return notes
+    except:
+        return 'No memories found'
 
 
 def get_last_messages(conversation, limit):
@@ -185,11 +191,15 @@ def save_message(discord_message, vector):
 
 
 def load_memories(vector):
-    conversation = load_convo()
-    memories = fetch_memories(vector, conversation, 10)
-    notes = summarize_memories(memories)
-    recent = get_last_messages(conversation, 4)
-    return notes, recent
+    try:
+        conversation = load_convo()
+        memories = fetch_memories(vector, conversation, 10)
+        notes = summarize_memories(memories)
+        recent = get_last_messages(conversation, 4)
+        return notes, recent
+    except Exception as oops:
+        print('Error loading memories:', oops)
+        return '', ''
 
 
 def generate_prompt(notes, recent, a):
