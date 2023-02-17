@@ -1,5 +1,20 @@
 """
 BORT is a discord chatbot that uses embeddings and semantic search to simulate a long term memory
+
+Ideas for new features:
+- Dream - Get random memories of chats and generate a dream. Have gpt take details from the memories and generate a dreamlike narative and some image prompts so users can "see the dream"
+- Research - Use langchain search tools to allow bort to do research on topics that have come up a lot in conversation
+- Ruminate - Use langchain to have bort "think about" a topic on it's own. This could be used to generate a random
+topic for the dream feature.
+- Silo Memories - Create separate folders of memories for each discord server and each user. This would allow for more privacy and more specific memories.
+- Switch from 'discord' library to 'disnake' library to allow for slash commands
+- Switch from 'openai' to langchain
+- Switch from the .Client to the .Bot class
+- Add slash commands.
+- Add a way to generate "rules" when a user requests a specific way for the bot to behave. These rules could be siloed by user and server.
+- Maybe have users somehow add a secure api key to their account so that they can use their own gpt3 api key. This will be necessary if I want to grow the bot beyond my personal server, as I am currently paying for all the api requests it does.
+
+
 """
 
 import asyncio
