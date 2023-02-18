@@ -2,7 +2,7 @@
 BORT is a discord chatbot that uses embeddings and semantic search to simulate a long term memory
 
 Ideas for new features:
-- Dream - Get random memories of chats and generate a dream. Have gpt take details from the memories and generate a dreamlike narative and some image prompts so users can "see the dream"
+X Dream - Get random memories of chats and generate a dream. Have gpt take details from the memories and generate a dreamlike narative and some image prompts so users can "see the dream"
 - Research - Use langchain search tools to allow bort to do research on topics that have come up a lot in conversation
 - Ruminate - Use langchain to have bort "think about" a topic on it's own. This could be used to generate a random
 topic for the dream feature.

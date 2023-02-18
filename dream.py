@@ -13,7 +13,7 @@ import json
 import re
 from collections import Counter
 from time import sleep, time
-
+import discord
 import openai
 from langchain import PromptTemplate
 from langchain.llms import OpenAI
@@ -21,7 +21,8 @@ import numpy as np
 from numpy.linalg import norm
 
 
-def init_llm(engine="text-davinci-003", temperature=1, max_tokens=2048, top_p=1.0, frequency_penalty=0.0, presence_penalty=0.0):
+def init_llm(engine="text-davinci-003", temperature=1, max_tokens=2048, top_p=1.0, frequency_penalty=0.0,
+             presence_penalty=0.0):
     """
     initialize the gpt3 engine
     """
@@ -194,7 +195,8 @@ def generate_theme(master_memory_list):
     words = []
     # remove the words that are too common
     stop_words = ['the', 'and', 'a', 'to', 'of', 'in', 'is', 'you', 'that', 'it', 'he', 'was', 'for', 'on', 'are'
-    , 'as', 'with', 'his', 'they', 'I', 'at', 'be', 'this', 'have', 'from', 'or', 'one', 'had', 'by', 'word', 'but', 'not']
+        , 'as', 'with', 'his', 'they', 'I', 'at', 'be', 'this', 'have', 'from', 'or', 'one', 'had', 'by', 'word', 'but',
+                  'not']
     for memory in master_memory_list:
         words += memory.split()
     for word in words:
@@ -234,7 +236,7 @@ def make_dream_prompt(master_memory_list):
     Theme:
     {theme}
     """
-    prompt = PromptTemplate(template=template, input_variables=['memories','theme'])
+    prompt = PromptTemplate(template=template, input_variables=['memories', 'theme'])
     prompt = prompt.format(memories=master_memory_list, theme=generate_theme(master_memory_list))
     print(prompt)
     return prompt
@@ -271,6 +273,7 @@ def generate_image_prompt(dream):
     print(prompt)
     return prompt
 
+
 def generate_image(image_prompt):
     """
     generate an image based on the image prompt
@@ -288,6 +291,7 @@ def save_image(image):
     """
     pass
 
+
 def save_dream(dream):
     """
     save the dream in dream/{time}_dream.txt
@@ -298,6 +302,33 @@ def save_dream(dream):
         f.write(dream)
 
 
+def post_dream(dream):
+    """
+    post the dream to discord
+    :param dream:
+    :return:
+    """
+    send_message(dream)
+
+
+def send_message(message):
+    intents = discord.Intents.all()
+    client = discord.Client(intents=intents,
+                            shard_id=0,
+                            shard_count=1,
+                            reconnect=True)
+
+    @client.event
+    async def on_ready():
+        channel = client.get_channel(int(os.environ.get('BORT_CHAN_ID')))
+        await channel.send(message)
+        print("done")
+
+        return ""
+
+    client.run(os.environ.get('BORT_DISCORD_TOKEN'))
+    client.close()
+    print("can you see me?")
 
 
 def main():
@@ -308,6 +339,7 @@ def main():
     prompt = make_dream_prompt(phrases)
     dream = generate_dream(prompt)
     save_dream(dream)
+    post_dream(dream)
     print(dream)
 
 
