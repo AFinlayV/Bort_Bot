@@ -317,7 +317,7 @@ def send_message(message):
                             shard_id=0,
                             shard_count=1,
                             reconnect=True)
-    channel = client.get_channel(int(os.environ.get('BORT_CHAN_ID')))
+    channel = client.get_channel(int(os.environ.get('BORT_DISCORD_CHAN_ID')))
     channel.send(message)
     print("done")
     client.run(os.environ.get('BORT_DISCORD_TOKEN'))
