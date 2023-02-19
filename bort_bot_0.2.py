@@ -29,7 +29,7 @@ import numpy as np
 from numpy.linalg import norm
 import dream
 
-VERBOSE = True
+VERBOSE = False
 
 
 def vprint(*args, **kwargs):
@@ -84,7 +84,7 @@ def similarity(v1, v2):
 
 
 def fetch_memories(vector, logs, count):
-    vprint('fetching memories')
+    print('fetching memories')
     scores = list()
     for i in logs:
         if vector == i['vector']:
@@ -107,7 +107,7 @@ def fetch_memories(vector, logs, count):
 
 def load_convo():
     try:
-        vprint('loading convo')
+        print('loading convo')
         files = os.listdir('nexus')
         files = [i for i in files if '.json' in i]  # filter out any non-JSON files
         result = list()
@@ -123,7 +123,7 @@ def load_convo():
 
 def summarize_memories(memories):  # summarize a block of memories into one payload
     try:
-        vprint('summarizing memories')
+        print('summarizing memories')
         memories = sorted(memories, key=lambda d: d['time'], reverse=False)  # sort them chronologically
         block = ''
         identifiers = list()
@@ -162,7 +162,7 @@ def get_last_messages(conversation, limit):
 
 
 def gpt3_completion(prompt, engine='text-davinci-003', temp=0.9, top_p=1.0, tokens=1024, freq_pen=0.0, pres_pen=0.0):
-    vprint('generating completion')
+    print('generating completion')
     max_retry = 5
     retry = 0
     prompt = prompt.encode(encoding='ASCII', errors='ignore').decode()
@@ -195,7 +195,7 @@ def gpt3_completion(prompt, engine='text-davinci-003', temp=0.9, top_p=1.0, toke
 
 
 def save_message(discord_message, vector):
-    vprint('saving message')
+    print('saving message')
     text = discord_message.content
     user = discord_message.author.name
     timestamp = time()
@@ -214,7 +214,7 @@ def save_message(discord_message, vector):
 
 def load_memories(vector):
     try:
-        vprint('loading memories')
+        print('loading memories')
         conversation = load_convo()
         memories = fetch_memories(vector, conversation, 10)
         notes = summarize_memories(memories)
@@ -229,7 +229,7 @@ def load_memories(vector):
 
 
 def generate_prompt(notes, recent, a):
-    vprint('generating prompt')
+    print('generating prompt')
     prompt = open_file('BORT_Prompt.txt')
     prompt_len = len(prompt) + len(a) + len(notes) + len(recent)
     # This is a hack to keep the prompt under the token limit
@@ -246,7 +246,7 @@ def generate_prompt(notes, recent, a):
 
 
 def save_response(response):
-    vprint('saving response')
+    print('saving response')
     timestamp = time()
     vector = gpt3_embedding(response)
     timestring = timestamp_to_datetime(timestamp)
@@ -269,7 +269,7 @@ def save_response(response):
 
 def process_message(discord_message):
     try:
-        vprint('processing message')
+        print('processing message')
         message = f'{discord_message.author.name}: {discord_message.content}'
         message_vector = gpt3_embedding(message)
         save_message(discord_message, message_vector)
@@ -303,29 +303,31 @@ if __name__ == "__main__":
 
     @bort.event
     async def on_message(message):
-        vprint('message received')
+        print('message received from discord from %s' % message.author.name)
+        vprint('message: %s' % message.content)
         limit = 1500
         if message.author == bort.user:
+            vprint('message from self, ignoring')
             return
         elif message.content.startswith('!') or message.content == "":
+            vprint('message is humans whispering, ignoring')
             return
         elif message.content.startswith('/dream'):
-            output = await asyncio.get_event_loop().run_in_executor(None, dream.main())['output']
+            print('dreaming')
+            output = dream.main()
+            vprint('dream: %s' % output)
             # split output into chunks of 1500 characters, separated at the end of a word, and ending with '...'
             # if there is a split happening and send them as separate messages with a 1 sec delay
-            if len(output) > limit:
-                for i in range(0, len(output), limit):
-                    if i + limit < len(output):
-                        j = output.rfind(' ', i, i + limit)
-                        vprint('sending chunk to discord')
-                        await message.channel.send(output[i:j] + '...')
-                        sleep(1)
-                    else:
-                        vprint('sending full message to discord')
-                        await message.channel.send(output[i:i + limit])
-                        sleep(1)
+            message_parts = [output[i:i + 1500] for i in range(0, len(output), 1500)]
+            for part in message_parts:
+                if len(part) == 1500:
+                    vprint('sending chunk to discord')
+                    part = part + '...'
+                await message.channel.send(part)
+            print("sent response to discord")
+            vprint('message: %s' % output)
         else:
-            vprint('sending message to process')
+            print('sending message to process')
             # use asyncio to run the process_message function in the background
             output = await asyncio.get_event_loop().run_in_executor(None, process_message, message)
             # Split the output into chunks of 1500 characters and send them as separate messages with a 1 sec delay
@@ -335,6 +337,7 @@ if __name__ == "__main__":
                     vprint('sending chunk to discord')
                     part = part + '...'
                 await message.channel.send(part)
-            vprint("sent message to discord %s" "...".join(message_parts))
+            print("sent response to discord")
+            vprint('message: %s' % output['output'])
 
     bort.run(os.environ['BORT_DISCORD_TOKEN'])
