@@ -13,12 +13,12 @@ import json
 import re
 from collections import Counter
 from time import sleep, time
-import discord
 import openai
 from langchain import PromptTemplate
 from langchain.llms import OpenAI
 import numpy as np
 from numpy.linalg import norm
+import requests
 
 
 def init_llm(engine="text-davinci-003", temperature=1, max_tokens=2048, top_p=1.0, frequency_penalty=0.0,
@@ -44,8 +44,8 @@ def get_memories(num):
     :return: list of strings
     """
     memories = []
-    for filename in os.listdir('nexus/'):
-        with open(f'nexus/{filename}') as f:
+    for filename in os.listdir('./nexus/'):
+        with open(f'./nexus/{filename}') as f:
             memory_dict = json.load(f)
             memory = memory_dict['message']
             memories.append(memory)
@@ -56,6 +56,7 @@ def get_memories(num):
     else:
         num = len(memories)
         return memories
+    print(f'loaded {num} memories')
     for memory in memories:
         print(memory)
     return memories
@@ -302,41 +303,19 @@ def save_dream(dream):
         f.write(dream)
 
 
-def post_dream(dream):
-    """
-    post the dream to discord
-    :param dream:
-    :return:
-    """
-    send_message(dream)
-
-
-def send_message(message):
-    intents = discord.Intents.all()
-    client = discord.Client(intents=intents,
-                            shard_id=0,
-                            shard_count=1,
-                            reconnect=True)
-    channel = client.get_channel(int(os.environ.get('BORT_DISCORD_CHAN_ID')))
-    channel.send(message)
-    print("done")
-    client.run(os.environ.get('BORT_DISCORD_TOKEN'))
-    client.close()
-    print("can you see me?")
-    exit()
-
 
 
 def main():
     memories = get_memories(10)
+    memories = [memory for memory in memories if memory != '']
     similar_memories = get_similar_memories(memories, 5)
     master_memory_list = make_master_memory_list(memories, similar_memories)
     phrases = prepare_memories(master_memory_list)
     prompt = make_dream_prompt(phrases)
     dream = generate_dream(prompt)
     save_dream(dream)
-    post_dream(dream)
     print(dream)
+    return str(dream)
 
 
 if __name__ == '__main__':

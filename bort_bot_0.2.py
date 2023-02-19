@@ -27,6 +27,7 @@ from time import time, sleep
 from uuid import uuid4
 import numpy as np
 from numpy.linalg import norm
+import dream
 
 
 def load_json(filepath):
@@ -277,10 +278,16 @@ if __name__ == "__main__":
             return
         elif message.content.startswith('!') or message.content == "":
             return
+        elif message.content.startswith('/dream'):
+            text = dream.main()
+            await message.channel.send(text)
         else:
             # use asyncio to run the process_message function in the background
             output = await asyncio.get_event_loop().run_in_executor(None, process_message, message)
-            await message.channel.send(output['output'])
+            # Split the output into chunks of 1500 characters and send them as separate messages with a 1 sec delay
+            for i in range(0, len(output['output']), 1500):
+                await message.channel.send(output['output'][i:i + 1500])
+                sleep(1)
 
 
     bort.run(os.environ['BORT_DISCORD_TOKEN'])
