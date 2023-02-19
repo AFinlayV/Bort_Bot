@@ -29,6 +29,13 @@ import numpy as np
 from numpy.linalg import norm
 import dream
 
+VERBOSE = True
+
+
+def vprint(*args, **kwargs):
+    if VERBOSE:
+        print(*args, **kwargs)
+
 
 def load_json(filepath):
     with open(filepath, 'r', encoding='utf-8') as infile:
@@ -64,21 +71,6 @@ def timestamp_to_datetime(unix_time):
     return datetime.datetime.fromtimestamp(unix_time).strftime("%A, %B %d, %Y at %I:%M%p %Z")
 
 
-# def init_keys():
-#     # load openai api key
-#     if not os.environ.get('OPENAI_API_KEY'):
-#         with open("/Users/alexthe5th/Documents/API Keys/OpenAI_API_key.txt", "r") as f:
-#             key = f.read().strip()
-#             openai.api_key = key
-#             os.environ["OPENAI_API_KEY"] = key
-#
-#     # load discord auth token
-#     if not os.environ.get('BORT_DISCORD_TOKEN'):
-#         auth = load_json('/Users/alexthe5th/Documents/API Keys/Discord_auth.json')
-#         os.environ['BORT_DISCORD_TOKEN'] = auth['token'].strip()
-#         os.environ['BORT_DISCORD_CHAN_ID'] = auth['chan_id'].strip()
-
-
 def gpt3_embedding(content, engine='text-embedding-ada-002'):
     content = content.encode(encoding='ASCII', errors='ignore').decode()
     response = openai.Embedding.create(input=content, engine=engine)
@@ -92,6 +84,7 @@ def similarity(v1, v2):
 
 
 def fetch_memories(vector, logs, count):
+    vprint('fetching memories')
     scores = list()
     for i in logs:
         if vector == i['vector']:
@@ -101,9 +94,12 @@ def fetch_memories(vector, logs, count):
         i['score'] = score
         scores.append(i)
     ordered = sorted(scores, key=lambda d: d['score'], reverse=True)
+    vprint('found %s memories' % len(ordered))
+    vprint('top memory score: %s' % ordered[0]['score'])
     # TODO - pick more memories temporally nearby the top most relevant memories
     try:
         ordered = ordered[0:count]
+        vprint('memories: %s' % ordered)
         return ordered
     except:
         return ordered
@@ -111,6 +107,7 @@ def fetch_memories(vector, logs, count):
 
 def load_convo():
     try:
+        vprint('loading convo')
         files = os.listdir('nexus')
         files = [i for i in files if '.json' in i]  # filter out any non-JSON files
         result = list()
@@ -118,6 +115,8 @@ def load_convo():
             data = load_json('nexus/%s' % file)
             result.append(data)
         ordered = sorted(result, key=lambda d: d['time'], reverse=False)  # sort them all chronologically
+        vprint('loaded %s conversations' % len(ordered))
+        vprint('conversation: %s' % ordered)
         return ordered
     except:
         return "No Conversation Found"
@@ -125,6 +124,7 @@ def load_convo():
 
 def summarize_memories(memories):  # summarize a block of memories into one payload
     try:
+        vprint('summarizing memories')
         memories = sorted(memories, key=lambda d: d['time'], reverse=False)  # sort them chronologically
         block = ''
         identifiers = list()
@@ -143,6 +143,8 @@ def summarize_memories(memories):  # summarize a block of memories into one payl
                 'time': time()}
         filename = 'notes_%s.json' % time()
         save_json('internal_notes/%s' % filename, info)
+        vprint('saved notes')
+        vprint('notes: %s' % notes)
         return notes
     except:
         return 'No memories found'
@@ -160,7 +162,8 @@ def get_last_messages(conversation, limit):
     return output
 
 
-def gpt3_completion(prompt, engine='text-davinci-003', temp=0.5, top_p=1.0, tokens=1024, freq_pen=0.0, pres_pen=0.0):
+def gpt3_completion(prompt, engine='text-davinci-003', temp=0.9, top_p=1.0, tokens=1024, freq_pen=0.0, pres_pen=0.0):
+    vprint('generating completion')
     max_retry = 5
     retry = 0
     prompt = prompt.encode(encoding='ASCII', errors='ignore').decode()
@@ -181,6 +184,8 @@ def gpt3_completion(prompt, engine='text-davinci-003', temp=0.5, top_p=1.0, toke
             if not os.path.exists('gpt3_logs'):
                 os.makedirs('gpt3_logs')
             save_file('gpt3_logs/%s' % filename, prompt + '\n\n==========\n\n' + text)
+            vprint('saved gpt3 log')
+            vprint('gpt response: %s' % text)
             return text
         except Exception as oops:
             retry += 1
@@ -191,6 +196,7 @@ def gpt3_completion(prompt, engine='text-davinci-003', temp=0.5, top_p=1.0, toke
 
 
 def save_message(discord_message, vector):
+    vprint('saving message')
     text = discord_message.content
     user = discord_message.author.name
     timestamp = time()
@@ -204,14 +210,19 @@ def save_message(discord_message, vector):
             'timestring': timestring}
     filename = f'log_{timestamp}_{user}.json'
     save_json('nexus/%s' % filename, info)
+    vprint('saved message')
 
 
 def load_memories(vector):
     try:
+        vprint('loading memories')
         conversation = load_convo()
         memories = fetch_memories(vector, conversation, 10)
         notes = summarize_memories(memories)
         recent = get_last_messages(conversation, 4)
+        vprint('loaded memories')
+        vprint('notes: %s' % notes)
+        vprint('recent: %s' % recent)
         return notes, recent
     except Exception as oops:
         print('Error loading memories:', oops)
@@ -219,14 +230,24 @@ def load_memories(vector):
 
 
 def generate_prompt(notes, recent, a):
-    prompt = open_file('BORT_Prompt.txt') \
-        .replace('<<NOTES>>', notes) \
-        .replace('<<CONVERSATION>>', recent) \
-        .replace('<<MESSAGE>>', a)
+    vprint('generating prompt')
+    prompt = open_file('BORT_Prompt.txt')
+    prompt_len = len(prompt) + len(a) + len(notes) + len(recent)
+    # This is a hack to keep the prompt under the token limit
+    # This can be done more precisely by using the token count of the prompt,
+    # rather than the estimate from the string length.
+    if prompt_len < 25000:
+        prompt = prompt.replace('<<NOTES>>', notes).replace('<<CONVERSATION>>', recent).replace('<<MESSAGE>>', a)
+    else:
+        prompt = prompt.replace('<<NOTES>>', '').replace('<<CONVERSATION>>', recent).replace('<<MESSAGE>>', a)
+    vprint('generated prompt')
+    vprint('prompt length: %s' % len(prompt))
+    vprint('prompt: %s' % prompt)
     return prompt
 
 
 def save_response(response):
+    vprint('saving response')
     timestamp = time()
     vector = gpt3_embedding(response)
     timestring = timestamp_to_datetime(timestamp)
@@ -241,10 +262,15 @@ def save_response(response):
     }
     filename = f'log_{timestamp}_Bort.json'
     save_json('nexus/%s' % filename, info)
+    vprint('saved response')
+    vprint('filename: %s' % filename)
+    vprint('response: %s' % response)
+
 
 
 def process_message(discord_message):
     try:
+        vprint('processing message')
         message = f'{discord_message.author.name}: {discord_message.content}'
         message_vector = gpt3_embedding(message)
         save_message(discord_message, message_vector)
@@ -252,6 +278,9 @@ def process_message(discord_message):
         prompt = generate_prompt(notes, recent, message)
         response = gpt3_completion(prompt)
         save_response(response)
+        vprint('processed message')
+        vprint('user: %s' % discord_message.author.name)
+        vprint('response: %s' % response)
         return {'output': response, 'user': discord_message.author.name}
     except Exception as oops:
         print('Error processing message:', oops)
@@ -259,7 +288,7 @@ def process_message(discord_message):
 
 
 if __name__ == "__main__":
-    #init_keys()
+    # init_keys()
     bort = init_discord_client()
 
 
@@ -268,26 +297,45 @@ if __name__ == "__main__":
         channel = bort.get_channel(int(os.environ['BORT_DISCORD_CHAN_ID']))
         if channel is not None:
             await channel.send(f"{bort.user} has connected to Discord!")
+            print(f"{bort.user} has connected to Discord!")
         else:
             print("Channel not found")
 
 
     @bort.event
     async def on_message(message):
+        vprint('message received')
+        limit = 1500
         if message.author == bort.user:
             return
         elif message.content.startswith('!') or message.content == "":
             return
         elif message.content.startswith('/dream'):
-            text = dream.main()
-            await message.channel.send(text)
+            output = await asyncio.get_event_loop().run_in_executor(None, dream.main())['output']
+            # split output into chunks of 1500 characters, separated at the end of a word, and ending with '...'
+            # if there is a split happening and send them as separate messages with a 1 sec delay
+            if len(output) > limit:
+                for i in range(0, len(output), limit):
+                    if i + limit < len(output):
+                        j = output.rfind(' ', i, i + limit)
+                        vprint('sending chunk to discord')
+                        await message.channel.send(output[i:j] + '...')
+                        sleep(1)
+                    else:
+                        vprint('sending full message to discord')
+                        await message.channel.send(output[i:i + limit])
+                        sleep(1)
         else:
+            vprint('sending message to process')
             # use asyncio to run the process_message function in the background
             output = await asyncio.get_event_loop().run_in_executor(None, process_message, message)
             # Split the output into chunks of 1500 characters and send them as separate messages with a 1 sec delay
-            for i in range(0, len(output['output']), 1500):
-                await message.channel.send(output['output'][i:i + 1500])
-                sleep(1)
-
+            message_parts = [output['output'][i:i + 1500] for i in range(0, len(output['output']), 1500)]
+            for part in message_parts:
+                if len(part) == 1500:
+                    vprint('sending chunk to discord')
+                    part = part + '...'
+                await message.channel.send(part)
+            vprint("sent message to discord %s" "...".join(message_parts))
 
     bort.run(os.environ['BORT_DISCORD_TOKEN'])
