@@ -99,7 +99,7 @@ def fetch_memories(vector, logs, count):
     # TODO - pick more memories temporally nearby the top most relevant memories
     try:
         ordered = ordered[0:count]
-        vprint('memories: %s' % ordered)
+        vprint('memories fetched: %s' % len(ordered))
         return ordered
     except:
         return ordered
@@ -116,7 +116,6 @@ def load_convo():
             result.append(data)
         ordered = sorted(result, key=lambda d: d['time'], reverse=False)  # sort them all chronologically
         vprint('loaded %s conversations' % len(ordered))
-        vprint('conversation: %s' % ordered)
         return ordered
     except:
         return "No Conversation Found"
