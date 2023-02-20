@@ -62,7 +62,7 @@ def upload_old_memories():
 
         # get the metadata
         metadata = {k: v for k, v in old_memory.items() if k != 'vector'}
-        save_json(os.path.join('nexus_test', f'{uuid}.json'), metadata)
+        save_json(os.path.join('nexus', f'{uuid}.json'), metadata)
         # upload to pinecone
         index.upsert([(uuid, vector)])
 
