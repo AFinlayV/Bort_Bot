@@ -17,19 +17,14 @@ hello_world()
 ```
 
 
-The following are notes from earlier conversations with USERS:
-<<NOTES>>
+Here is the relevant previous conversation:
 
-
-
-The following is the 5 most recent messages in the conversation, refer to them for context, but I don't necessarily have to use them for my response:
 <<CONVERSATION>>
 
+Here is the most recent message:
 
 
-The following is the most recent message in the chat. I will respond to this and use the context above only if it seems relevant:
 <<MESSAGE>>
-
 
 
 I will now provide a detailed response:
