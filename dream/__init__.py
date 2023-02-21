@@ -171,29 +171,33 @@ def generate_theme(master_memory_list):
     :param master_memory_list:
     :return: string
     """
-
-    llm = init_llm()
-    words = []
-    template = """Generate a short description for a theme of your dream, given the list of random words 
-    below. Make all of the details of the theme relate in some way to the words in the list of words. The theme must 
-    relate directly to the words in the list of words. The theme must be a single sentence. 
+    template = """
+    Word list: 
     
-    Words: {words}
+    ##########
+    {words}
+    ##########
+    
+    Generate a short description for a theme of a dream, given the list of random words 
+    above. Make all of the details of the theme relate in some way to the words in the list of words. The theme must 
+    relate directly to the words in the list of words. The theme must be a single sentence. The theme must be a
+    description of a theme of a dream. The theme must be a description of a theme of a dream that is related to the
+    words in the list of words. 
     
     Theme:
     """
     most_common_words = []
     words = []
     # remove the words that are too common
-    stop_words = ['the', 'and', 'a', 'to', 'of', 'in', 'is', 'you', 'that', 'it', 'he', 'was', 'for', 'on', 'are'
-        , 'as', 'with', 'his', 'they', 'I', 'at', 'be', 'this', 'have', 'from', 'or', 'one', 'had', 'by', 'word', 'but',
-                  'not']
+    stop_words = ['the', 'and', 'a', 'to', 'of', 'in', 'is', 'you', 'that', 'it', 'he', 'was', 'for', 'on', 'are',
+                  'as', 'with', 'his', 'they', 'I', 'at', 'be', 'this', 'have', 'from', 'or', 'one', 'had', 'by',
+                  'word', 'but', 'not']
     for memory in master_memory_list:
         words += memory.split()
     for word in words:
-        if word in stop_words:
-            words.remove(word)
-    # get the most common words in the memories
+        if word not in stop_words:
+            most_common_words.append(word)
+    # get the most common words
     for memory in master_memory_list:
         words += memory.split()
     for word in words:
@@ -293,8 +297,6 @@ def save_dream(dream):
         f.write(dream)
 
 
-
-
 def get_dream():
     memories = get_memories(10)
     memories = [memory for memory in memories if memory != '']
@@ -307,8 +309,10 @@ def get_dream():
     print(dream)
     return str(dream)
 
+
 def main():
     pass
+
 
 if __name__ == '__main__':
     main()
