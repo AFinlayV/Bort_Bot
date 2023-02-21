@@ -79,7 +79,7 @@ def get_last_messages(limit):
     with open('nexus/%s' % files[-1], 'r', encoding='utf-8') as infile:
         data = json.load(infile)
         # return a list of {limit} messages with the most recent utc timestamp in the "time" field first
-        output = sorted(data['message'], key=lambda x: x['time'], reverse=True)[:limit]
+        return [data['message'] for data in sorted(data, key=lambda x: x['time'], reverse=True)[:limit]]
         vprint('output: %s' % output)
     return output
 
