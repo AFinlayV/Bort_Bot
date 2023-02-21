@@ -105,11 +105,11 @@ def gpt3_completion(prompt):
             response = openai.Completion.create(
                 engine=CONFIG["gpt_settings"]["engine"],
                 prompt=prompt,
-                temperature=CONFIG["gpt_settings"]["temperature"],
-                max_tokens=CONFIG["gpt_settings"]["max_tokens"],
+                temperature=CONFIG["gpt_settings"]["temp"],
+                max_tokens=CONFIG["gpt_settings"]["tokens"],
                 top_p=CONFIG["gpt_settings"]["top_p"],
-                frequency_penalty=CONFIG["gpt_settings"]["frequency_penalty"],
-                presence_penalty=CONFIG["gpt_settings"]["presence_penalty"])
+                frequency_penalty=CONFIG["gpt_settings"]["freq_pen"],
+                presence_penalty=CONFIG["gpt_settings"]["pres_pen"])
             text = response['choices'][0]['text'].strip()
             # text = re.sub('[\r\n]+', '\n', text)
             # text = re.sub('[\t ]+', ' ', text)
