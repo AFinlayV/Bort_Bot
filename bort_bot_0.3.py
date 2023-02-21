@@ -145,6 +145,8 @@ def load_conversation(results):
 def process_message(discord_message):
     context_size = 50
     recent_message_count = 10
+    token_limit = 3000
+    prompt_file = 'BORT_Prompt.txt'
     try:
         print('processing message')
         #### get user input, save it, vectorize it, save to pinecone
@@ -168,17 +170,17 @@ def process_message(discord_message):
             results)  # results should be a DICT with 'matches' which is a LIST of DICTS, with 'id'
         recent = get_last_messages(recent_message_count)
         print('conversation: %s' % conversation)
-        prompt = open_file('BORT_Prompt.txt')\
+        prompt = open_file(prompt_file)\
             .replace('<<CONVERSATION>>', conversation)\
             .replace('<<RECENT>>', recent)\
             .replace('<<MESSAGE>>', message)
         num_tokens = count_tokens(prompt)
-        while num_tokens > 3000:
+        while num_tokens > token_limit:
             print('prompt too long, trimming')
             context_size = int(context_size * .9)
             results = vdb.query(vector=vector, top_k=context_size)
             conversation = load_conversation(results)
-            prompt = open_file('BORT_Prompt.txt') \
+            prompt = open_file(prompt_file) \
                 .replace('<<CONVERSATION>>', conversation) \
                 .replace('<<RECENT>>', recent) \
                 .replace('<<MESSAGE>>', message)
