@@ -89,8 +89,7 @@ def get_last_messages(limit):
         vprint('message: %s' % messages)
     except:
         pass
-    for message in messages[-limit:]:
-        output += message
+    output = '\n'.join(messages[:limit])
     print('got %s messages' % len(messages))
     vprint(output)
     return output
