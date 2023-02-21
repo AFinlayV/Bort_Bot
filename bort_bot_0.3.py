@@ -16,7 +16,7 @@ import dream
 import pinecone
 import tiktoken
 
-VERBOSE = True
+VERBOSE = False
 
 
 def vprint(*args, **kwargs):
