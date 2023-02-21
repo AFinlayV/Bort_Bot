@@ -73,13 +73,13 @@ def gpt3_embedding(content, engine='text-embedding-ada-002'):
 
 def get_last_messages(limit):
     # get {limit} most recent json files from nexus/ folder and return
-    # a concatenated string of all the ['messages'] fields
+    # a concatenated string of all the ['message'] fields
     print('getting most recent messages')
     files = os.listdir('nexus')
     with open('nexus/%s' % files[-1], 'r', encoding='utf-8') as infile:
         data = json.load(infile)
         # return a list of {limit} messages with the most recent utc timestamp in the "time" field first
-        output = sorted(data['messages'], key=lambda x: x['time'], reverse=True)[:limit]
+        output = sorted(data['message'], key=lambda x: x['time'], reverse=True)[:limit]
         vprint('output: %s' % output)
     return output
 
