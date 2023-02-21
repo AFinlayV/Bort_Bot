@@ -77,10 +77,11 @@ def get_last_messages(limit):
                 payload = load_json('nexus/%s' % file)
                 messages.append(payload['message'])
                 vprint('loaded %s' % file)
-                vprint('message: %s' % messages[-1])
+        messages = sorted(messages, key=lambda k: k['time'], reverse=True)
+        vprint('loaded %s messages' % len(messages))
+        vprint('message: %s' % messages)
     except:
         pass
-    messages = sorted(messages, key=lambda k: k['time']).reverse()
     for message in messages[-limit:]:
         output += message['message']
     print('got %s messages' % len(messages))
