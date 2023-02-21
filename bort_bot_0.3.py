@@ -86,6 +86,9 @@ def get_last_messages(limit):
             with open(f'nexus/{file}', 'r', encoding='utf-8') as infile:
                 messages.append(json.load(infile)['message'])
         output = ' '.join(messages)
+    except Exception as oops:
+        print('Error getting recent messages:', oops)
+        return 'Error getting recent messages: %s' % oops
     return output
 
 
