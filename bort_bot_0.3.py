@@ -67,6 +67,7 @@ def gpt3_embedding(content, engine='text-embedding-ada-002'):
 def get_last_messages(limit):
     # get {limit} most recent json files from nexus/ folder and return
     # a concatenated string of all the ['messages'] fields
+    print('getting recent messages')
     output = ''
     messages = []
     try:
@@ -78,6 +79,8 @@ def get_last_messages(limit):
     messages = sorted(messages, key=lambda k: k['time']).reverse()
     for message in messages[-limit:]:
         output += message['messages']
+    print('got %s messages' % len(messages))
+    vprint(output)
     return output
 
 
@@ -115,12 +118,17 @@ def gpt3_completion(prompt, engine='text-davinci-003', temp=0.7, top_p=1.0, toke
 
 
 def load_conversation(results):
+    print('loading relevant messages from past conversations')
     result = list()
     for m in results['matches']:
         info = load_json('nexus/%s.json' % m['id'])
         result.append(info)
+    vprint('result: %s' % result)
     ordered = sorted(result, key=lambda d: d['time'], reverse=False)  # sort them all chronologically
     messages = [i['message'] for i in ordered]
+    print('loaded %s messages' % len(messages))
+    vprint('messages: %s' % messages)
+
     return '\n'.join(messages).strip()
 
 
