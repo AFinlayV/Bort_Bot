@@ -64,15 +64,20 @@ def gpt3_embedding(content, engine='text-embedding-ada-002'):
     return vector
 
 
-def get_last_messages(conversation, limit):
-    try:
-        short = conversation[-limit:-1]
-    except:
-        short = conversation
+def get_last_messages(limit):
+    # get {limit} most recent json files from nexus/ folder and return
+    # a concatenated string of all the ['messages'] fields
     output = ''
-    for i in short:
-        output += '%s\n\n' % i['message']
-    output = output.strip()
+    messages = []
+    try:
+        for file in os.listdir('nexus'):
+            if file.endswith('.json'):
+                messages.append(load_json('nexus/%s' % file))
+    except:
+        pass
+    messages = sorted(messages, key=lambda k: k['time']).reverse()
+    for message in messages[-limit:]:
+        output += message['messages']
     return output
 
 
@@ -141,7 +146,7 @@ def process_message(discord_message):
         print('results: %s' % results)
         conversation = load_conversation(
             results)  # results should be a DICT with 'matches' which is a LIST of DICTS, with 'id'
-        recent = get_last_messages(conversation, 10)
+        recent = get_last_messages(10)
         print('conversation: %s' % conversation)
         prompt = open_file('BORT_Prompt.txt')\
             .replace('<<CONVERSATION>>', conversation)\
