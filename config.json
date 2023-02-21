@@ -1,0 +1,28 @@
+{
+  "verbose": true,
+  "context_size": 50,
+  "recent_message_count": 10,
+  "token_limit": 3000,
+  "prompt_file": "BORT_Prompt.txt",
+  "max_retry": 5,
+  "discord_chunk_size": 1500,
+  "env_vars": {
+    "openai_key_env": "OPENAI_API_KEY",
+    "pinecone_key_env": "PINECONE_API_KEY",
+    "discord_token_env": "BORT_DISCORD_TOKEN",
+    "discord_channel_id_env": "BORT_DISCORD_CHAN_ID",
+    "discord_app_id_env": "BORT_APP_ID",
+    "google_search_ces_id_env": "GOOGLE_CSE_ID",
+    "google_search_key_env": "GOOGLE_API_KEY",
+    },
+  "pinecone_environment": "us-east1-gcp",
+  "pinecone_index": "bort",
+  "gpt_settings": {
+    "engine":"text-davinci-003",
+    "temp": 0.7,
+    "top_p": 1.0,
+    "tokens": 1024,
+    "freq_pen": 0.0,
+    "pres_pen": 0.0
+    }
+}

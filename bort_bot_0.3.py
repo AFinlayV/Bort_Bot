@@ -16,11 +16,12 @@ import dream
 import pinecone
 import tiktoken
 
-VERBOSE = False
+with open('config.json', 'r', encoding='utf-8') as infile:
+    CONFIG = json.load(infile)
 
 
 def vprint(*args, **kwargs):
-    if VERBOSE:
+    if CONFIG['verbose']:
         print(*args, **kwargs)
 
 
@@ -31,11 +32,11 @@ def load_json(filepath):
 
 def init_discord_client():
     intents = discord.Intents.all()
-    bort = discord.Client(intents=intents,
+    client = discord.Client(intents=intents,
                           shard_id=0,
                           shard_count=1,
                           reconnect=True)
-    return bort
+    return client
 
 
 # Functions from RAVEN to load and save memories, rewrite these using langchain and async_openai
@@ -94,21 +95,21 @@ def get_last_messages(limit):
     return output
 
 
-def gpt3_completion(prompt, engine='text-davinci-003', temp=0.7, top_p=1.0, tokens=1024, freq_pen=0.0, pres_pen=0.0):
+def gpt3_completion(prompt):
     print('generating completion')
-    max_retry = 5
+    max_retry = CONFIG['max_retry']
     retry = 0
     prompt = prompt.encode(encoding='ASCII', errors='ignore').decode()
     while True:
         try:
             response = openai.Completion.create(
-                engine=engine,
+                engine=CONFIG["gpt_settings"]["engine"],
                 prompt=prompt,
-                temperature=temp,
-                max_tokens=tokens,
-                top_p=top_p,
-                frequency_penalty=freq_pen,
-                presence_penalty=pres_pen)
+                temperature=CONFIG["gpt_settings"]["temperature"],
+                max_tokens=CONFIG["gpt_settings"]["max_tokens"],
+                top_p=CONFIG["gpt_settings"]["top_p"],
+                frequency_penalty=CONFIG["gpt_settings"]["frequency_penalty"],
+                presence_penalty=CONFIG["gpt_settings"]["presence_penalty"])
             text = response['choices'][0]['text'].strip()
             # text = re.sub('[\r\n]+', '\n', text)
             # text = re.sub('[\t ]+', ' ', text)
@@ -138,15 +139,14 @@ def load_conversation(results):
     messages = [i['message'] for i in ordered]
     print('loaded %s messages' % len(messages))
     vprint('messages: %s' % messages)
-
     return '\n'.join(messages).strip()
 
 
 def process_message(discord_message):
-    context_size = 50
-    recent_message_count = 10
-    token_limit = 3000
-    prompt_file = 'BORT_Prompt.txt'
+    context_size = CONFIG['context_size']
+    recent_message_count = CONFIG['recent_message_count']
+    token_limit = CONFIG['token_limit']
+    prompt_file = CONFIG['prompt_file']
     try:
         print('processing message')
         #### get user input, save it, vectorize it, save to pinecone
@@ -210,8 +210,8 @@ def process_message(discord_message):
 if __name__ == "__main__":
     # init_keys()
     bort = init_discord_client()
-    pinecone.init(api_key=os.environ.get('PINECONE_API_KEY'), environment='us-east1-gcp')
-    vdb = pinecone.Index('bort')
+    pinecone.init(api_key=os.environ.get('PINECONE_API_KEY'), environment=CONFIG["pinecone_environment"])
+    vdb = pinecone.Index(CONFIG["pinecone_index"])
 
 
     @bort.event
@@ -228,7 +228,7 @@ if __name__ == "__main__":
     async def on_message(message):
         print('message received from discord from %s' % message.author.name)
         vprint('message: %s' % message.content)
-        limit = 1500
+        limit = CONFIG['discord_chunk_limit']
         if message.author == bort.user:
             vprint('message from self, ignoring')
             return
@@ -241,9 +241,9 @@ if __name__ == "__main__":
             vprint('dream: %s' % output)
             # split output into chunks of 1500 characters, separated at the end of a word, and ending with '...'
             # if there is a split happening and send them as separate messages with a 1 sec delay
-            message_parts = [output[i:i + 1500] for i in range(0, len(output), 1500)]
+            message_parts = [output[i:i + limit] for i in range(0, len(output), limit)]
             for part in message_parts:
-                if len(part) == 1500:
+                if len(part) == limit:
                     vprint('sending chunk to discord')
                     part = part + '...'
                 await message.channel.send(part)
@@ -254,9 +254,9 @@ if __name__ == "__main__":
             # use asyncio to run the process_message function in the background
             output = await asyncio.get_event_loop().run_in_executor(None, process_message, message)
             # Split the output into chunks of 1500 characters and send them as separate messages with a 1 sec delay
-            message_parts = [output['output'][i:i + 1500] for i in range(0, len(output['output']), 1500)]
+            message_parts = [output['output'][i:i + limit] for i in range(0, len(output['output']), limit)]
             for part in message_parts:
-                if len(part) == 1500:
+                if len(part) == limit:
                     vprint('sending chunk to discord')
                     part = part + '...'
                 await message.channel.send(part)
