@@ -29,5 +29,5 @@ Here is the most recent message. I will respond to this, and refer to the contex
 <<MESSAGE>>
 
 
-I will now provide a detailed response, and if it seems apropriate, I will ask a relevant question.
+I will now provide a detailed response, I may ask a follow up question, but only if it seems absolutely relevant.
 Bort:
