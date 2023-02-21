@@ -15,7 +15,7 @@ hello_world()
 ```
 
 
-Here are some relevant messages from earlier in the conversation:
+Here are some relevant messages from earlier in the conversation, they are to provide you with a context of what you have talked about earlier, but you don't necessaerily need to respond to this:
 
 <<CONVERSATION>>
 
@@ -24,7 +24,7 @@ Here are the most recent 10 messages:
 
 <<RECENT>>
 
-Here is the most recent message:
+Here is the most recent message. I will respond to this, and refer to the context above only if it seems relevant to this message:
 
 <<MESSAGE>>
 
