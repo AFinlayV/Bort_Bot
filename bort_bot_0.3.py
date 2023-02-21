@@ -84,7 +84,7 @@ def get_last_messages(limit):
         filepath = 'nexus/%s' % file
         print('filepath: %s' % filepath)
         data = load_json(filepath)
-        output += data['messages']
+        output += data['message']
     print('recent messages output\n~~~~~~~~~!!!!!!!!!!~~~~~~~~~\n: %s' % output)
     return output
 
@@ -139,7 +139,7 @@ def load_conversation(results):
 
 def process_message(discord_message):
     context_size = 50
-    message_count = 10
+    recent_message_count = 10
     try:
         print('processing message')
         #### get user input, save it, vectorize it, save to pinecone
@@ -161,7 +161,7 @@ def process_message(discord_message):
         print('results: %s' % results)
         conversation = load_conversation(
             results)  # results should be a DICT with 'matches' which is a LIST of DICTS, with 'id'
-        recent = get_last_messages(message_count)
+        recent = get_last_messages(recent_message_count)
         print('conversation: %s' % conversation)
         prompt = open_file('BORT_Prompt.txt')\
             .replace('<<CONVERSATION>>', conversation)\
