@@ -174,10 +174,8 @@ def process_message(discord_message):
         while num_tokens > 3000:
             print('prompt too long, trimming')
             context_size = int(context_size * .9)
-            message_count = int(message_count * .9)
             results = vdb.query(vector=vector, top_k=context_size)
             conversation = load_conversation(results)
-            recent = get_last_messages(message_count)
             prompt = open_file('BORT_Prompt.txt') \
                 .replace('<<CONVERSATION>>', conversation) \
                 .replace('<<RECENT>>', recent) \
