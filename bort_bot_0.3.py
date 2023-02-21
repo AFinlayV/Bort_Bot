@@ -89,6 +89,8 @@ def get_last_messages(limit):
     except Exception as oops:
         print('Error getting recent messages:', oops)
         return 'Error getting recent messages: %s' % oops
+    print('got recent messages')
+    print('output: %s' % output)
     return output
 
 
