@@ -76,11 +76,21 @@ def get_last_messages(limit):
     # a concatenated string of all the ['message'] fields
     print('getting most recent messages')
     files = os.listdir('nexus')
-    with open('nexus/%s' % files[-1], 'r', encoding='utf-8') as infile:
-        data = json.load(infile)
-        # return a list of {limit} messages with the most recent utc timestamp in the "time" field first
-        return [data['message'] for data in sorted(data, key=lambda x: x['time'], reverse=True)[:limit]]
-        vprint('output: %s' % output)
+    # make a dict of {filename: timestamp}
+    file_dict = {}
+    for file in files:
+        file_dict[file] = os.path.getmtime('nexus/' + file)
+    # sort the dict by timestamp
+    sorted_files = sorted(file_dict.items(), key=lambda x: x[1], reverse=True)
+    # get the first {limit} files
+    sorted_files = sorted_files[:limit]
+    # get the messages from the files
+    messages = []
+    for file in sorted_files:
+        message = load_json('nexus/' + file[0])['message']
+        messages.append(message)
+    # concatenate the messages
+    output = ' '.join(messages)
     return output
 
 
