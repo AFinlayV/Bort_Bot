@@ -22,7 +22,7 @@ Here are some relevant messages from earlier in the conversation:
 
 Here are the most recent 10 messages:
 
-<<MESSAGE>>
+<<RECENT>>
 
 Here is the most recent message:
 
