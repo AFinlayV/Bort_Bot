@@ -1,5 +1,5 @@
 {
-  "verbose": true,
+  "verbose": 1,
   "context_size": 50,
   "recent_message_count": 10,
   "token_limit": 3000,
