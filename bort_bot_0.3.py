@@ -228,7 +228,7 @@ if __name__ == "__main__":
     async def on_message(message):
         print('message received from discord from %s' % message.author.name)
         vprint('message: %s' % message.content)
-        limit = CONFIG['discord_chunk_limit']
+        limit = CONFIG['discord_chunk_size']
         if message.author == bort.user:
             vprint('message from self, ignoring')
             return
