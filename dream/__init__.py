@@ -43,22 +43,12 @@ def get_memories(num):
 
     :return: list of strings
     """
+
     memories = []
-    for filename in os.listdir('./nexus/'):
-        with open(f'./nexus/{filename}') as f:
-            memory_dict = json.load(f)
-            memory = memory_dict['message']
-            memories.append(memory)
-            print(f'loaded {filename}')
-    if len(memories) > num:
-        # select {num} memories at random
-        memories = random.sample(memories, num)
-    else:
-        num = len(memories)
-        return memories
-    print(f'loaded {num} memories')
-    for memory in memories:
-        print(memory)
+    for i in range(num):
+        memory = random.choice(os.listdir('nexus'))
+        with open(f'nexus/{memory}') as f:
+            memories.append(json.load(f)['message'])
     return memories
 
 
@@ -305,7 +295,7 @@ def save_dream(dream):
 
 
 
-def main():
+def get_dream():
     memories = get_memories(10)
     memories = [memory for memory in memories if memory != '']
     similar_memories = get_similar_memories(memories, 5)
@@ -317,6 +307,8 @@ def main():
     print(dream)
     return str(dream)
 
+def main():
+    pass
 
 if __name__ == '__main__':
     main()

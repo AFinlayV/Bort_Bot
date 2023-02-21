@@ -12,12 +12,10 @@ import openai
 import json
 from time import time, sleep
 from uuid import uuid4
-import numpy as np
-from numpy.linalg import norm
 import dream
 import pinecone
 
-VERBOSE = False
+VERBOSE = True
 
 
 def vprint(*args, **kwargs):
@@ -66,77 +64,6 @@ def gpt3_embedding(content, engine='text-embedding-ada-002'):
     return vector
 
 
-def similarity(v1, v2):
-    # based upon https://stackoverflow.com/questions/18424228/cosine-similarity-between-2-number-lists
-    return np.dot(v1, v2) / (norm(v1) * norm(v2))  # return cosine similarity
-
-
-def fetch_memories(vector, logs, count):
-    print('fetching memories')
-    scores = list()
-    for i in logs:
-        if vector == i['vector']:
-            # skip this one because it is the same message
-            continue
-        score = similarity(i['vector'], vector)
-        i['score'] = score
-        scores.append(i)
-    ordered = sorted(scores, key=lambda d: d['score'], reverse=True)
-    vprint('found %s memories' % len(ordered))
-    vprint('top memory score: %s' % ordered[0]['score'])
-    # TODO - pick more memories temporally nearby the top most relevant memories
-    try:
-        ordered = ordered[0:count]
-        vprint('memories fetched: %s' % len(ordered))
-        return ordered
-    except:
-        return ordered
-
-
-def load_convo():
-    try:
-        print('loading convo')
-        files = os.listdir('nexus')
-        files = [i for i in files if '.json' in i]  # filter out any non-JSON files
-        result = list()
-        for file in files:
-            data = load_json('nexus/%s' % file)
-            result.append(data)
-        ordered = sorted(result, key=lambda d: d['time'], reverse=False)  # sort them all chronologically
-        vprint('loaded %s conversations' % len(ordered))
-        return ordered
-    except:
-        return "No Conversation Found"
-
-
-def summarize_memories(memories):  # summarize a block of memories into one payload
-    try:
-        print('summarizing memories')
-        memories = sorted(memories, key=lambda d: d['time'], reverse=False)  # sort them chronologically
-        block = ''
-        identifiers = list()
-        timestamps = list()
-        for mem in memories:
-            block += mem['message'] + '\n\n'
-            identifiers.append(mem['uuid'])
-            timestamps.append(mem['time'])
-        block = block.strip()
-        prompt = open_file('prompt_notes.txt').replace('<<INPUT>>', block)
-        # TODO - do this in the background over time to handle huge amounts of memories
-        notes = gpt3_completion(prompt)
-        #   SAVE NOTES
-        vector = gpt3_embedding(block)
-        info = {'notes': notes, 'uuids': identifiers, 'times': timestamps, 'uuid': str(uuid4()), 'vector': vector,
-                'time': time()}
-        filename = 'notes_%s.json' % time()
-        save_json('internal_notes/%s' % filename, info)
-        vprint('saved notes')
-        vprint('notes: %s' % notes)
-        return notes
-    except:
-        return 'No memories found'
-
-
 def get_last_messages(conversation, limit):
     try:
         short = conversation[-limit:-1]
@@ -181,6 +108,7 @@ def gpt3_completion(prompt, engine='text-davinci-003', temp=0.7, top_p=1.0, toke
             print('Error communicating with OpenAI:', oops)
             sleep(1)
 
+
 def load_conversation(results):
     result = list()
     for m in results['matches']:
@@ -189,79 +117,6 @@ def load_conversation(results):
     ordered = sorted(result, key=lambda d: d['time'], reverse=False)  # sort them all chronologically
     messages = [i['message'] for i in ordered]
     return '\n'.join(messages).strip()
-
-
-def save_message(discord_message, vector):
-    print('saving message')
-    text = discord_message.content
-    user = discord_message.author.name
-    timestamp = time()
-    timestring = timestamp_to_datetime(timestamp)
-    message = '%s: %s' % ([{user}], text)
-    info = {'speaker': user,
-            'time': timestamp,
-            'vector': vector,
-            'message': message,
-            'uuid': str(uuid4()),
-            'timestring': timestring}
-    filename = f'log_{timestamp}_{user}.json'
-    save_json('nexus/%s' % filename, info)
-    vprint('saved message')
-
-
-def load_memories(vector, vdb):
-    try:
-        print('loading memories')
-        conversation = load_convo()
-        memories = fetch_memories(vector, conversation, 10)
-        notes = summarize_memories(memories)
-        recent = get_last_messages(conversation, 4)
-        vprint('loaded memories')
-        vprint('notes: %s' % notes)
-        vprint('recent: %s' % recent)
-        return notes, recent
-    except Exception as oops:
-        print('Error loading memories:', oops)
-        return '', ''
-
-
-def generate_prompt(notes, recent, a):
-    print('generating prompt')
-    prompt = open_file('BORT_Prompt.txt')
-    prompt_len = len(prompt) + len(a) + len(notes) + len(recent)
-    # This is a hack to keep the prompt under the token limit
-    # This can be done more precisely by using the token count of the prompt,
-    # rather than the estimate from the string length.
-    if prompt_len < 25000:
-        prompt = prompt.replace('<<NOTES>>', notes).replace('<<CONVERSATION>>', recent).replace('<<MESSAGE>>', a)
-    else:
-        prompt = prompt.replace('<<NOTES>>', '').replace('<<CONVERSATION>>', recent).replace('<<MESSAGE>>', a)
-    vprint('generated prompt')
-    vprint('prompt length: %s' % len(prompt))
-    vprint('prompt: %s' % prompt)
-    return prompt
-
-
-def save_response(response):
-    print('saving response')
-    timestamp = time()
-    vector = gpt3_embedding(response)
-    timestring = timestamp_to_datetime(timestamp)
-    message = '%s: %s' % ('Bort', response)
-    info = {
-        'speaker': 'Bort',
-        'time': timestamp,
-        'vector': vector,
-        'message': message,
-        'uuid': str(uuid4()),
-        'timestring': timestring
-    }
-    filename = f'log_{timestamp}_Bort.json'
-    save_json('nexus/%s' % filename, info)
-    vprint('saved response')
-    vprint('filename: %s' % filename)
-    vprint('response: %s' % response)
-
 
 
 def process_message(discord_message):
@@ -284,9 +139,14 @@ def process_message(discord_message):
         #### search for relevant messages, and generate a response
         results = vdb.query(vector=vector, top_k=30)
         print('results: %s' % results)
-        conversation = load_conversation(results)  # results should be a DICT with 'matches' which is a LIST of DICTS, with 'id'
+        conversation = load_conversation(
+            results)  # results should be a DICT with 'matches' which is a LIST of DICTS, with 'id'
+        recent = get_last_messages(conversation, 10)
         print('conversation: %s' % conversation)
-        prompt = open_file('BORT_Prompt.txt').replace('<<CONVERSATION>>', conversation).replace('<<MESSAGE>>', message)
+        prompt = open_file('BORT_Prompt.txt')\
+            .replace('<<CONVERSATION>>', conversation)\
+            .replace('<<RECENT>>', recent)\
+            .replace('<<MESSAGE>>', message)
         print('prompt: %s' % prompt)
         #### generate response, vectorize, save, etc
         output = gpt3_completion(prompt)
@@ -338,7 +198,7 @@ if __name__ == "__main__":
             return
         elif message.content.startswith('/dream'):
             print('dreaming')
-            output = dream.main()
+            output = dream.get_dream()
             vprint('dream: %s' % output)
             # split output into chunks of 1500 characters, separated at the end of a word, and ending with '...'
             # if there is a split happening and send them as separate messages with a 1 sec delay
@@ -363,5 +223,6 @@ if __name__ == "__main__":
                 await message.channel.send(part)
             print("sent response to discord")
             vprint('message: %s' % output['output'])
+
 
     bort.run(os.environ['BORT_DISCORD_TOKEN'])
