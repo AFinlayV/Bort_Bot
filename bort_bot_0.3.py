@@ -14,6 +14,7 @@ from time import time, sleep
 from uuid import uuid4
 import dream
 import pinecone
+import tiktoken
 
 VERBOSE = True
 
@@ -56,6 +57,12 @@ def save_json(filepath, payload):
 def timestamp_to_datetime(unix_time):
     return datetime.datetime.fromtimestamp(unix_time).strftime("%A, %B %d, %Y at %I:%M%p %Z")
 
+def count_tokens(text):
+    print('counting tokens')
+    encoding = tiktoken.get_encoding("gpt2")
+    num_tokens = len(encoding.encode(text))
+    vprint('num_tokens: %s' % num_tokens)
+    return num_tokens
 
 def gpt3_embedding(content, engine='text-embedding-ada-002'):
     content = content.encode(encoding='ASCII', errors='ignore').decode()
@@ -138,6 +145,8 @@ def load_conversation(results):
 
 
 def process_message(discord_message):
+    context_size = 50
+    message_count = 10
     try:
         print('processing message')
         #### get user input, save it, vectorize it, save to pinecone
@@ -155,16 +164,30 @@ def process_message(discord_message):
         save_json('nexus/%s.json' % unique_id, metadata)
         payload.append((unique_id, vector))
         #### search for relevant messages, and generate a response
-        results = vdb.query(vector=vector, top_k=30)
+        results = vdb.query(vector=vector, top_k=context_size)
         print('results: %s' % results)
         conversation = load_conversation(
             results)  # results should be a DICT with 'matches' which is a LIST of DICTS, with 'id'
-        recent = get_last_messages(10)
+        recent = get_last_messages(message_count)
         print('conversation: %s' % conversation)
         prompt = open_file('BORT_Prompt.txt')\
             .replace('<<CONVERSATION>>', conversation)\
             .replace('<<RECENT>>', recent)\
             .replace('<<MESSAGE>>', message)
+        num_tokens = count_tokens(prompt)
+        while num_tokens > 3000:
+            print('prompt too long, trimming')
+            context_size = int(context_size * .9)
+            message_count = int(message_count * .9)
+            results = vdb.query(vector=vector, top_k=context_size)
+            conversation = load_conversation(results)
+            recent = get_last_messages(message_count)
+            prompt = open_file('BORT_Prompt.txt') \
+                .replace('<<CONVERSATION>>', conversation) \
+                .replace('<<RECENT>>', recent) \
+                .replace('<<MESSAGE>>', message)
+            num_tokens = count_tokens(prompt)
+            print(f'prompt reduced to {num_tokens} tokens')
         print('prompt: %s' % prompt)
         #### generate response, vectorize, save, etc
         output = gpt3_completion(prompt)
