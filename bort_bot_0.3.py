@@ -177,7 +177,7 @@ def process_message(discord_message):
         num_tokens = count_tokens(prompt)
         while num_tokens > token_limit:
             print('prompt too long, trimming')
-            context_size = int(context_size * .9)
+            context_size = int(context_size - 1)
             results = vdb.query(vector=vector, top_k=context_size)
             conversation = load_conversation(results)
             prompt = open_file(prompt_file) \
