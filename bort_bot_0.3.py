@@ -2,6 +2,7 @@
 BORT is a discord chatbot that uses embeddings and semantic search to simulate a long term memory
 
 [X] - switch to pinecone for memory embedding/ search/ storage
+
 """
 
 import asyncio
