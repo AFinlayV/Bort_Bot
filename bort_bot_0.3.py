@@ -143,6 +143,19 @@ def load_conversation(results):
     return '\n'.join(messages).strip()
 
 
+def trim_prompt(prompt):
+    print('trimming prompt')
+    token_limit = CONFIG['token_limit']
+    tokens = count_tokens(prompt)
+    if tokens > token_limit:
+        print('trimming prompt')
+        lines = prompt.splitlines()
+        while tokens > token_limit:
+            lines = lines[1:]
+            prompt = '  '.join(lines)
+            tokens = count_tokens(prompt)
+    return prompt
+
 def process_message(discord_message):
     context_size = CONFIG['context_size']
     recent_message_count = CONFIG['recent_message_count']
@@ -178,13 +191,7 @@ def process_message(discord_message):
         num_tokens = count_tokens(prompt)
         while num_tokens > token_limit:
             print('prompt too long, trimming')
-            context_size = int(context_size - 1)
-            results = vdb.query(vector=vector, top_k=context_size)
-            conversation = load_conversation(results)
-            prompt = open_file(prompt_file) \
-                .replace('<<CONVERSATION>>', conversation) \
-                .replace('<<RECENT>>', recent) \
-                .replace('<<MESSAGE>>', message)
+            prompt = trim_prompt(prompt)
             num_tokens = count_tokens(prompt)
             print(f'prompt reduced to {num_tokens} tokens')
         print('prompt: %s' % prompt)
