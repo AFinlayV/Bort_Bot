@@ -90,8 +90,8 @@ def get_last_messages(limit, server_id):
     messages = []
     for file in sorted_files:
         message = load_json('nexus/' + file[0])
-        # if message['server'] == server_id:
-        messages.append(message['message'])
+        if message['server'] == server_id:
+            messages.append(message['message'])
     message = [message for message in messages if message != '']
     # concatenate the messages
     output = ' '.join(messages)
@@ -136,8 +136,8 @@ def load_conversation(results, server_id):
     result = list()
     for m in results['matches']:
         info = load_json('nexus/%s.json' % m['id'])
-        # if info['server'] == server_id:
-        result.append(info)
+        if info['server'] == server_id:
+            result.append(info)
     vprint('result: %s' % result)
     ordered = sorted(result, key=lambda d: d['time'], reverse=False)  # sort them all chronologically
     messages = [i['message'] for i in ordered]
