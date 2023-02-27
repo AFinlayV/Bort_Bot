@@ -135,7 +135,7 @@ def load_conversation(results, server_id):
     result = list()
     for m in results['matches']:
         info = load_json('nexus/%s.json' % m['id'])
-        if info['server_id'] == server_id:
+        if info['server'] == server_id:
             result.append(info)
     vprint('result: %s' % result)
     ordered = sorted(result, key=lambda d: d['time'], reverse=False)  # sort them all chronologically
