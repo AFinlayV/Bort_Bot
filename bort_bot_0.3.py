@@ -74,28 +74,32 @@ def gpt3_embedding(content, engine='text-embedding-ada-002'):
 
 
 def get_last_messages(limit, server_id):
-    # get {limit} most recent json files from nexus/ folder and return
-    # a concatenated string of all the ['message'] fields
-    print('getting most recent messages')
-    files = os.listdir('nexus')
-    # make a dict of {filename: timestamp}
-    file_dict = {}
-    for file in files:
-        file_dict[file] = os.path.getmtime('nexus/' + file)
-    # sort the dict by timestamp
-    sorted_files = sorted(file_dict.items(), key=lambda x: x[1], reverse=True)
-    # get the first {limit} files
-    sorted_files = sorted_files[:limit]
-    # get the messages from the files
-    messages = []
-    for file in sorted_files:
-        message = load_json('nexus/' + file[0])
-        if message['server'] == server_id:
-            messages.append(message['message'])
-    message = [message for message in messages if message != '']
-    # concatenate the messages
-    output = ' '.join(messages)
-    return output
+    try:
+        # get {limit} most recent json files from nexus/ folder and return
+        # a concatenated string of all the ['message'] fields
+        print('getting most recent messages')
+        files = os.listdir('nexus')
+        # make a dict of {filename: timestamp}
+        file_dict = {}
+        for file in files:
+            file_dict[file] = os.path.getmtime('nexus/' + file)
+        # sort the dict by timestamp
+        sorted_files = sorted(file_dict.items(), key=lambda x: x[1], reverse=True)
+        # get the first {limit} files
+        sorted_files = sorted_files[:limit]
+        # get the messages from the files
+        messages = []
+        for file in sorted_files:
+            message = load_json('nexus/' + file[0])
+            if message['server'] == server_id:
+                messages.append(message['message'])
+        message = [message for message in messages if message != '']
+        # concatenate the messages
+        output = ' '.join(messages)
+        return output
+    except Exception as oops:
+        print('Error getting last messages:', oops)
+        return 'Error getting last messages: %s' % oops
 
 
 def gpt3_completion(prompt):
@@ -132,18 +136,22 @@ def gpt3_completion(prompt):
 
 
 def load_conversation(results, server_id):
-    print('loading relevant messages from past conversations')
-    result = list()
-    for m in results['matches']:
-        info = load_json('nexus/%s.json' % m['id'])
-        if info['server'] == server_id:
-            result.append(info)
-    vprint('result: %s' % result)
-    ordered = sorted(result, key=lambda d: d['time'], reverse=False)  # sort them all chronologically
-    messages = [i['message'] for i in ordered]
-    print('loaded %s messages' % len(messages))
-    vprint('messages: %s' % messages)
-    return '\n'.join(messages).strip()
+    try:
+        print('loading relevant messages from past conversations')
+        result = list()
+        for m in results['matches']:
+            info = load_json('nexus/%s.json' % m['id'])
+            if info['server'] == server_id:
+                result.append(info)
+        vprint('result: %s' % result)
+        ordered = sorted(result, key=lambda d: d['time'], reverse=False)  # sort them all chronologically
+        messages = [i['message'] for i in ordered]
+        print('loaded %s messages' % len(messages))
+        vprint('messages: %s' % messages)
+        return '\n'.join(messages).strip()
+    except Exception as oops:
+        print('Error loading conversation:', oops)
+        return ''
 
 
 def trim_prompt(prompt):
