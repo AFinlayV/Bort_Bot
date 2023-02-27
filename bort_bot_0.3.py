@@ -207,7 +207,7 @@ def process_message(discord_message):
         vector = gpt3_embedding(message)
         unique_id = str(uuid4())
         metadata = {'speaker': 'BORT', 'time': timestamp, 'message': message, 'timestring': timestring,
-                    'uuid': unique_id}
+                    'uuid': unique_id, 'server': server_id}
         save_json('nexus/%s.json' % unique_id, metadata)
         payload.append((unique_id, vector))
         vdb.upsert(payload)
