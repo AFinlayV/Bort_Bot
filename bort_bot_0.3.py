@@ -89,9 +89,9 @@ def get_last_messages(limit, server_id):
     # get the messages from the files
     messages = []
     for file in sorted_files:
-        message = load_json('nexus/' + file[0])['message']
+        message = load_json('nexus/' + file[0])
         if message['server'] == server_id:
-            messages.append(message)
+            messages.append(message['message'])
     # concatenate the messages
     output = ' '.join(messages)
     return output
