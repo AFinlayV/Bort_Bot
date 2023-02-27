@@ -73,7 +73,7 @@ def gpt3_embedding(content, engine='text-embedding-ada-002'):
     return vector
 
 
-def get_last_messages(limit):
+def get_last_messages(limit, server_id):
     # get {limit} most recent json files from nexus/ folder and return
     # a concatenated string of all the ['message'] fields
     print('getting most recent messages')
@@ -90,7 +90,8 @@ def get_last_messages(limit):
     messages = []
     for file in sorted_files:
         message = load_json('nexus/' + file[0])['message']
-        messages.append(message)
+        if message['server'] == server_id:
+            messages.append(message)
     # concatenate the messages
     output = ' '.join(messages)
     return output
@@ -129,12 +130,13 @@ def gpt3_completion(prompt):
             sleep(1)
 
 
-def load_conversation(results):
+def load_conversation(results, server_id):
     print('loading relevant messages from past conversations')
     result = list()
     for m in results['matches']:
         info = load_json('nexus/%s.json' % m['id'])
-        result.append(info)
+        if info['server_id'] == server_id:
+            result.append(info)
     vprint('result: %s' % result)
     ordered = sorted(result, key=lambda d: d['time'], reverse=False)  # sort them all chronologically
     messages = [i['message'] for i in ordered]
@@ -173,15 +175,16 @@ def process_message(discord_message):
         message = f'{user}: {message}'
         vector = gpt3_embedding(message)
         unique_id = str(uuid4())
+        server_id = discord_message.guild.id
         metadata = {'speaker': user, 'time': timestamp, 'message': message, 'timestring': timestring,
-                    'uuid': unique_id}
+                    'uuid': unique_id, 'server': server_id}
         save_json('nexus/%s.json' % unique_id, metadata)
         payload.append((unique_id, vector))
         #### search for relevant messages, and generate a response
         results = vdb.query(vector=vector, top_k=context_size)
         print('results: %s' % results)
         conversation = load_conversation(
-            results)  # results should be a DICT with 'matches' which is a LIST of DICTS, with 'id'
+            results, server_id)  # results should be a DICT with 'matches' which is a LIST of DICTS, with 'id'
         recent = get_last_messages(recent_message_count)
         print('conversation: %s' % conversation)
         prompt = open_file(prompt_file)\
