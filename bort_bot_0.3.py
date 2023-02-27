@@ -185,7 +185,7 @@ def process_message(discord_message):
         print('results: %s' % results)
         conversation = load_conversation(
             results, server_id)  # results should be a DICT with 'matches' which is a LIST of DICTS, with 'id'
-        recent = get_last_messages(recent_message_count)
+        recent = get_last_messages(recent_message_count, server_id)
         print('conversation: %s' % conversation)
         prompt = open_file(prompt_file)\
             .replace('<<CONVERSATION>>', conversation)\
