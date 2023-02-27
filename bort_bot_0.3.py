@@ -92,6 +92,7 @@ def get_last_messages(limit, server_id):
         message = load_json('nexus/' + file[0])
         # if message['server'] == server_id:
         messages.append(message['message'])
+    message = [message for message in messages if message != '']
     # concatenate the messages
     output = ' '.join(messages)
     return output
