@@ -175,7 +175,7 @@ def process_message(discord_message):
         message = f'{user}: {message}'
         vector = gpt3_embedding(message)
         unique_id = str(uuid4())
-        server_id = discord_message.guild
+        server_id = int(discord_message.guild.id)
         metadata = {'speaker': user, 'time': timestamp, 'message': message, 'timestring': timestring,
                     'uuid': unique_id, 'server': server_id}
         save_json('nexus/%s.json' % unique_id, metadata)
