@@ -20,7 +20,7 @@ def gpt3_embedding(content, engine='text-embedding-ada-002'):
 
 def main():
     # Change this to the folder where the json files are
-    folder = "old"
+    folder = "/root/old"
     pinecone.init(api_key=os.environ.get('PINECONE_API_KEY'), environment=CONFIG["pinecone_environment"])
     vdb = pinecone.Index(CONFIG["pinecone_index"])
     payload = []
