@@ -113,7 +113,7 @@ def gpt3_completion(prompt):
                 model=CONFIG["gpt_settings"]["engine"],
                 messages=[{"role": "user", "content": prompt}]
                 )
-            text = response['choices'][0]['text'].strip()
+            text = response['choices'][0]['message']['content'].strip()
             # text = re.sub('[\r\n]+', '\n', text)
             # text = re.sub('[\t ]+', ' ', text)
             filename = '%s_gpt3.txt' % time()
