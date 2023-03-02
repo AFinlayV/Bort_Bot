@@ -48,7 +48,6 @@ gpt_settings = CONFIG['gpt_settings']
 llm = OpenAI(
     model_name='text-davinci-003',
     temperature=gpt_settings['temp'],
-    max_length=gpt_settings['tokens'],
     top_p=gpt_settings['top_p']
 )
 util_llm = OpenAI(
