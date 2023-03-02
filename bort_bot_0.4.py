@@ -197,7 +197,7 @@ async def b(ctx, *args):
 
 def main():
     try:
-        bort.run(discord_token)
+        bort.run(os.environ['SANDBOX_DISCORD_TOKEN'])
     except Exception as oops:
         print(oops)
 
