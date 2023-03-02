@@ -110,7 +110,7 @@ def gpt3_completion(prompt):
     while True:
         try:
             response = openai.ChatCompletion.create(
-                engine=CONFIG["gpt_settings"]["engine"],
+                model=CONFIG["gpt_settings"]["engine"],
                 messages=[{"role": "user", "content": prompt}]
                 )
             text = response['choices'][0]['text'].strip()
