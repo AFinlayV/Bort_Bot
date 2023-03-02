@@ -99,17 +99,21 @@ def get_response(prompt, agent):
     response = agent.run(prompt)
     return response
 
+
 def save_memory(message, vdb):
     # save a memory
-    #vectorize the message
+    # vectorize the message
     vector = gpt3_embedding(message)
     unique_id = str(uuid4())
     save_vector_to_pinecone(vector, unique_id, vdb)
     save_message_to_json(message, unique_id)
     pass
 
+
 def save_message_to_json(message, unique_id):
     # save a message to the json file
+    pass
+
 
 def get_similar_memories(query):
     # get similar memories from the vdb
@@ -125,6 +129,7 @@ def save_vector_to_pinecone(vector, memory, vdb):
     # save vector to vdb
     pass
 
+
 def trim_prompt(prompt):
     print('trimming prompt')
     limit = CONFIG['token_limit']
@@ -137,6 +142,7 @@ def trim_prompt(prompt):
             prompt = '  '.join(lines)
             tokens = count_tokens(prompt)
     return prompt
+
 
 def process_message(discord_text):
     with open(CONFIG['langchain_file'], 'r', encoding='utf-8') as infile:
@@ -152,7 +158,6 @@ def process_message(discord_text):
     prompt = trim_prompt(prompt)
     response = get_response(prompt)
     return response
-
 
 
 async def send_response(ctx, discord_text, response):
