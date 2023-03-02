@@ -4,6 +4,7 @@
   "recent_message_count": 10,
   "token_limit": 3000,
   "prompt_file": "BORT_Prompt.txt",
+  "langchain_file": "BORT_LangChain.txt",
   "max_retry": 5,
   "discord_chunk_size": 1500,
   "env_vars": {
@@ -13,12 +14,16 @@
     "discord_channel_id_env": "BORT_DISCORD_CHAN_ID",
     "discord_app_id_env": "BORT_APP_ID",
     "google_search_ces_id_env": "GOOGLE_CSE_ID",
-    "google_search_key_env": "GOOGLE_API_KEY"
+    "google_search_key_env": "GOOGLE_API_KEY",
+    "sandbox_discord_token": "SANDBOX_DISCORD_TOKEN",
+    "wolfram_id": "WOLFRAM_ALPHA_APPID",
+    "google_id": "GOOGLE_CSE_ID",
+    "google_key": "GOOGLE_API_KEY"
     },
   "pinecone_environment": "us-east1-gcp",
   "pinecone_index": "bort",
   "gpt_settings": {
-    "engine":"text-davinci-003",
+    "engine":"gpt-3.5-turbo",
     "temp": 0.7,
     "top_p": 1.0,
     "tokens": 1024,
