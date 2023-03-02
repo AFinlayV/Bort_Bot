@@ -202,7 +202,7 @@ def main():
         bort.run(discord_token)
     except Exception as oops:
         print(oops)
-        main()
+
 
 
 if __name__ == "__main__":
