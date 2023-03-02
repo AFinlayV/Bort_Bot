@@ -1,6 +1,6 @@
 {
   "verbose": 1,
-  "context_size": 40,
+  "context_size": 20,
   "recent_message_count": 10,
   "token_limit": 3000,
   "prompt_file": "BORT_Prompt.txt",
