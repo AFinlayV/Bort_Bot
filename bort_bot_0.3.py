@@ -272,7 +272,7 @@ if __name__ == "__main__":
                 await message.channel.send(part)
             print("sent response to discord")
             vprint('message: %s' % output)
-        elif message.content.startswith('/Bort') or message.content.startswith('/bort'):
+        elif message.content.startswith('/Bort') or message.content.startswith('/bort') or message.channel.id == int(os.environ['BORT_DISCORD_CHAN_ID']):
             print('sending message to process')
             # use asyncio to run the process_message function in the background
             output = await asyncio.get_event_loop().run_in_executor(None, process_message, message)
