@@ -53,7 +53,6 @@ llm = OpenAI(
 util_llm = OpenAI(
     model_name=gpt_settings['engine'],
     temperature=0.0,
-    max_length=gpt_settings['tokens'],
     top_p=gpt_settings['top_p']
 )
 tools = load_tools(
@@ -190,7 +189,7 @@ async def send_response(ctx, discord_text, response):
 
 
 @bort.command()
-async def bort(ctx, *args):
+async def b(ctx, *args):
     discord_text = " ".join(args)
     response = await asyncio.get_event_loop().run_in_executor(None, process_message, discord_text)
     await send_response(ctx, discord_text, response)
