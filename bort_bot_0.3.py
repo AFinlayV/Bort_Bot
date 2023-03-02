@@ -111,12 +111,7 @@ def gpt3_completion(prompt):
         try:
             response = openai.ChatCompletion.create(
                 engine=CONFIG["gpt_settings"]["engine"],
-                prompt=prompt,
-                temperature=CONFIG["gpt_settings"]["temp"],
-                # max_tokens=CONFIG["gpt_settings"]["tokens"],
-                top_p=CONFIG["gpt_settings"]["top_p"],
-                frequency_penalty=CONFIG["gpt_settings"]["freq_pen"],
-                presence_penalty=CONFIG["gpt_settings"]["pres_pen"]
+                messages=[{"role": "user", "content": prompt}]
                 )
             text = response['choices'][0]['text'].strip()
             # text = re.sub('[\r\n]+', '\n', text)
