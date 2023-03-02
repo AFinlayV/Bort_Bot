@@ -199,7 +199,7 @@ def main():
     try:
         bort.run(os.environ['SANDBOX_DISCORD_TOKEN'])
     except Exception as oops:
-        print(oops)
+        print("ERROR IN MAIN", oops)
 
 
 
