@@ -109,11 +109,15 @@ def gpt3_completion(prompt):
     prompt = prompt.encode(encoding='ASCII', errors='ignore').decode()
     while True:
         try:
-            response = openai.ChatCompletion.create(
-                model=CONFIG["gpt_settings"]["engine"],
-                messages=[{"role": "user", "content": prompt}]
-                )
-            text = response['choices'][0]['message']['content'].strip()
+            response = openai.Completion.create(
+                engine=CONFIG["gpt_settings"]["engine"],
+                prompt=prompt,
+                temperature=CONFIG["gpt_settings"]["temp"],
+                max_tokens=CONFIG["gpt_settings"]["tokens"],
+                top_p=CONFIG["gpt_settings"]["top_p"],
+                frequency_penalty=CONFIG["gpt_settings"]["freq_pen"],
+                presence_penalty=CONFIG["gpt_settings"]["pres_pen"])
+            text = response['choices'][0]['text'].strip()
             # text = re.sub('[\r\n]+', '\n', text)
             # text = re.sub('[\t ]+', ' ', text)
             filename = '%s_gpt3.txt' % time()
@@ -265,7 +269,7 @@ if __name__ == "__main__":
                 await message.channel.send(part)
             print("sent response to discord")
             vprint('message: %s' % output)
-        elif message.content.startswith('/Bort') or message.content.startswith('/bort') or message.channel.id == int(os.environ['BORT_DISCORD_CHAN_ID']):
+        else:
             print('sending message to process')
             # use asyncio to run the process_message function in the background
             output = await asyncio.get_event_loop().run_in_executor(None, process_message, message)
@@ -278,9 +282,6 @@ if __name__ == "__main__":
                 await message.channel.send(part)
             print("sent response to discord")
             vprint('message: %s' % output['output'])
-        else:
-            print('message not recognized, ignoring')
-            return
 
 
     bort.run(os.environ['BORT_DISCORD_TOKEN'])
