@@ -110,7 +110,7 @@ def gpt3_completion(prompt):
     while True:
         try:
             response = openai.Completion.create(
-                engine=CONFIG["gpt_settings"]["engine"],
+                engine='text_davinci-003',
                 prompt=prompt,
                 temperature=CONFIG["gpt_settings"]["temp"],
                 max_tokens=CONFIG["gpt_settings"]["tokens"],

@@ -113,6 +113,7 @@ def save_message_to_json(message, unique_id):
     pass
 
 
+
 def get_similar_memories(query):
     # get similar memories from the vdb
     pass
@@ -200,7 +201,6 @@ def main():
         bort.run(os.environ['SANDBOX_DISCORD_TOKEN'])
     except Exception as oops:
         print("ERROR IN MAIN", oops)
-
 
 
 if __name__ == "__main__":
