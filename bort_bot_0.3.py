@@ -248,9 +248,6 @@ if __name__ == "__main__":
         if message.author == bort.user:
             vprint('message from self, ignoring')
             return
-        elif message.author.bot:
-            vprint('message from bot, ignoring')
-            return
         elif message.content.startswith('!') or message.content == "":
             vprint('message is humans whispering, ignoring')
             return
