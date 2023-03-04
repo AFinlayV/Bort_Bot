@@ -20,6 +20,75 @@ from langchain.agents import initialize_agent, load_tools
 import disnake
 from disnake.ext import commands
 
+
+class Bort(commands.Cog):
+    def __init__(self):
+        self.intents = disnake.Intents.all()
+        self.bot = commands.Bot(
+            command_prefix='/',
+            intents=self.intents
+        )
+        self.context_size = CONFIG['context_size']
+        self.recent_message_count = CONFIG['recent_message_count']
+        self.token_limit = CONFIG['token_limit']
+        self.prompt_file = CONFIG['prompt_file']
+        self.discord_token = os.environ.get(CONFIG["env_vars"]["sandbox_discord_token"])
+        self.wolfram_id = os.environ.get(CONFIG["env_vars"]["wolfram_id"])
+        self.google_id = os.environ.get(CONFIG["env_vars"]["google_id"])
+        self.google_key = os.environ.get(CONFIG["env_vars"]["google_key"])
+        self.pinecone_key = os.environ.get(CONFIG["env_vars"]["pinecone_key_env"])
+        self.gpt_settings = CONFIG['gpt_settings']
+        self.intents = disnake.Intents.all()
+        self.chat_llm = OpenAI(
+            model_name=CONFIG['gpt_chat_model'],
+            temperature=gpt_settings['chat_temp'],
+            top_p=gpt_settings['top_p']
+        )
+        self.util_llm = OpenAI(
+            model_name=CONFIG['gpt_util_model'],
+            temperature=gpt_settings['util_temp'],
+            top_p=gpt_settings['top_p']
+        )
+        self.tools = load_tools(
+            [
+                'llm-math',
+                'google-search',
+                'wolfram-alpha'
+            ],
+            llm=self.util_llm
+        )
+        self.agent = initialize_agent(
+            llm=self.chat_llm,
+            tools=self.tools,
+            prompt_template=str(),
+            token_limit=self.token_limit,
+            context_size=self.context_size,
+            recent_message_count=self.recent_message_count
+        )
+
+
+class User:
+    def __init__(self, ctx):
+        self.user_id = ctx.author.id
+        self.channel_id = ctx.channel.id
+        self.all_messages = []
+        self.most_recent_message = str()
+        self.custom_rules = []
+        self.summary = str()
+
+
+class Conversation:
+    def __init__(self, ctx, user):
+        self.user_id = ctx.author.id
+        self.channel_id = ctx.channel.id
+        self.messages = []
+        self.system_message = str()
+        self.user = user
+        self.user_summary = user.summary
+        self.user_custom_rules = user.custom_rules
+
+
+
 # load config vars
 with open('config.json', 'r', encoding='utf-8') as infile:
     CONFIG = json.load(infile)
@@ -113,7 +182,6 @@ def save_message_to_json(message, unique_id):
     pass
 
 
-
 def get_similar_memories(query):
     # get similar memories from the vdb
     pass
@@ -205,201 +273,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
-"""
-OLD CODE
-
-def init_discord_client():
-    intents = discord.Intents.all()
-    client = discord.Client(intents=intents,
-                            shard_id=0,
-                            shard_count=1,
-                            reconnect=True)
-    return client
-    
-    
-def get_last_messages(limit, server_id):
-    try:
-        # get {limit} most recent json files from nexus/ folder and return
-        # a concatenated string of all the ['message'] fields
-        print('getting most recent messages')
-        files = os.listdir('nexus')
-        # make a dict of {filename: timestamp}
-        file_dict = {}
-        for file in files:
-            file_dict[file] = os.path.getmtime('nexus/' + file)
-        # sort the dict by timestamp
-        sorted_files = sorted(file_dict.items(), key=lambda x: x[1], reverse=True)
-        # get the first {limit} files
-        sorted_files = sorted_files[:limit]
-        # get the messages from the files
-        messages = []
-        for file in sorted_files:
-            message = load_json('nexus/' + file[0])
-            if message['server'] == server_id:
-                messages.append(message['message'])
-        message = [message for message in messages if message != '']
-        # concatenate the messages
-        output = ' '.join(messages)
-        return output
-    except Exception as oops:
-        print('Error getting last messages:', oops)
-        return 'Error getting last messages: %s' % oops
-
-
-def gpt3_completion(prompt):
-    print('generating completion')
-    max_retry = CONFIG['max_retry']
-    retry = 0
-    prompt = prompt.encode(encoding='ASCII', errors='ignore').decode()
-    while True:
-        try:
-            response = openai.Completion.create(
-                engine=CONFIG["gpt_settings"]["engine"],
-                prompt=prompt,
-                temperature=CONFIG["gpt_settings"]["temp"],
-                max_tokens=CONFIG["gpt_settings"]["tokens"],
-                top_p=CONFIG["gpt_settings"]["top_p"],
-                frequency_penalty=CONFIG["gpt_settings"]["freq_pen"],
-                presence_penalty=CONFIG["gpt_settings"]["pres_pen"])
-            text = response['choices'][0]['text'].strip()
-            # text = re.sub('[\r\n]+', '\n', text)
-            # text = re.sub('[\t ]+', ' ', text)
-            filename = '%s_gpt3.txt' % time()
-            if not os.path.exists('gpt3_logs'):
-                os.makedirs('gpt3_logs')
-            save_file('gpt3_logs/%s' % filename, prompt + '\n\n==========\n\n' + text)
-            vprint('saved gpt3 log')
-            vprint('gpt response: %s' % text)
-            return text
-        except Exception as oops:
-            retry += 1
-            if retry >= max_retry:
-                return "GPT3 error: %s" % oops
-            print('Error communicating with OpenAI:', oops)
-            sleep(1)
-
-
-def load_conversation(results, server_id):
-    try:
-        print('loading relevant messages from past conversations')
-        result = list()
-        for m in results['matches']:
-            info = load_json('nexus/%s.json' % m['id'])
-            if info['server'] == server_id:
-                result.append(info)
-        vprint('result: %s' % result)
-        ordered = sorted(result, key=lambda d: d['time'], reverse=False)  # sort them all chronologically
-        messages = [i['message'] for i in ordered]
-        print('loaded %s messages' % len(messages))
-        vprint('messages: %s' % messages)
-        return '\n'.join(messages).strip()
-    except Exception as oops:
-        print('Error loading conversation:', oops)
-        return ''
-
-
-
-
-def process_message(discord_message):
-    context_size = CONFIG['context_size']
-    recent_message_count = CONFIG['recent_message_count']
-    token_limit = CONFIG['token_limit']
-    prompt_file = CONFIG['prompt_file']
-    try:
-        print('processing message')
-        #### get user input, save it, vectorize it, save to pinecone
-        payload = list()
-        message = discord_message.content
-        user = discord_message.author.name
-        timestamp = time()
-        timestring = timestamp_to_datetime(timestamp)
-        # message = '%s: %s - %s' % (user, timestring, a)
-        message = f'{user}: {message}'
-        vector = gpt3_embedding(message)
-        unique_id = str(uuid4())
-        server_id = discord_message.guild.id
-        metadata = {'speaker': user, 'time': timestamp, 'message': message, 'timestring': timestring,
-                    'uuid': unique_id, 'server': server_id}
-        save_json('nexus/%s.json' % unique_id, metadata)
-        payload.append((unique_id, vector))
-        #### search for relevant messages, and generate a response
-        results = vdb.query(vector=vector, top_k=context_size)
-        print('results: %s' % results)
-        conversation = load_conversation(
-            results, server_id)  # results should be a DICT with 'matches' which is a LIST of DICTS, with 'id'
-        recent = get_last_messages(recent_message_count, server_id)
-        print('conversation: %s' % conversation)
-        prompt = open_file(prompt_file)\
-            .replace('<<CONVERSATION>>', conversation)\
-            .replace('<<RECENT>>', recent)\
-            .replace('<<MESSAGE>>', message)
-        num_tokens = count_tokens(prompt)
-        while num_tokens > token_limit:
-            print('prompt too long, trimming')
-            prompt = trim_prompt(prompt)
-            num_tokens = count_tokens(prompt)
-            print(f'prompt reduced to {num_tokens} tokens')
-        print('prompt: %s' % prompt)
-        #### generate response, vectorize, save, etc
-        output = gpt3_completion(prompt)
-        timestamp = time()
-        timestring = timestamp_to_datetime(timestamp)
-        # message = '%s: %s - %s' % ('RAVEN', timestring, output)
-        message = output
-        vector = gpt3_embedding(message)
-        unique_id = str(uuid4())
-        metadata = {'speaker': 'BORT', 'time': timestamp, 'message': message, 'timestring': timestring,
-                    'uuid': unique_id, 'server': server_id}
-        save_json('nexus/%s.json' % unique_id, metadata)
-        payload.append((unique_id, vector))
-        vdb.upsert(payload)
-        print('\n\nBORT: %s' % output)
-        return {'output': output, 'user': discord_message.author.name}
-    except Exception as oops:
-        print('Error processing message:', oops)
-        return {'output': 'Error processing message: %s' % oops, 'user': discord_message.author.name}
-
-   @bort.event
-    async def on_message(message):
-        print('message received from discord from %s' % message.author.name)
-        vprint('message: %s' % message.content)
-        limit = CONFIG['discord_chunk_size']
-        if message.author == bort.user:
-            vprint('message from self, ignoring')
-            return
-        elif message.author.bot:
-            vprint('message from bot, ignoring')
-            return
-        elif message.content.startswith('!') or message.content == "":
-            vprint('message is humans whispering, ignoring')
-            return
-        elif message.content.startswith('/dream'):
-            print('dreaming')
-            output = dream.get_dream()
-            vprint('dream: %s' % output)
-            # split output into chunks of 1500 characters, separated at the end of a word, and ending with '...'
-            # if there is a split happening and send them as separate messages with a 1 sec delay
-            message_parts = [output[i:i + limit] for i in range(0, len(output), limit)]
-            for part in message_parts:
-                if len(part) == limit:
-                    vprint('sending chunk to discord')
-                    part = part + '...'
-                await message.channel.send(part)
-            print("sent response to discord")
-            vprint('message: %s' % output)
-        else:
-            print('sending message to process')
-            # use asyncio to run the process_message function in the background
-            output = await asyncio.get_event_loop().run_in_executor(None, process_message, message)
-            # Split the output into chunks of 1500 characters and send them as separate messages with a 1 sec delay
-            message_parts = [output['output'][i:i + limit] for i in range(0, len(output['output']), limit)]
-            for part in message_parts:
-                if len(part) == limit:
-                    vprint('sending chunk to discord')
-                    part = part + '...'
-                await message.channel.send(part)
-            print("sent response to discord")
-            vprint('message: %s' % output['output'])
-
-"""
