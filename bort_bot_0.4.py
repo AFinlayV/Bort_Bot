@@ -1,275 +1,203 @@
 """
-BORT is a discord chatbot that uses embeddings and semantic search to simulate a long term memory
+Bort 0.4
 
-[X] - switch to pinecone for memory embedding/ search/ storage
+Starting again from scratch. There is a new version of the gpt api. gpt-3.5-turbo. It is a lot faster, and 10x cheaper.
+I also want to rewrite use the langchain library from the ground up rather than building functions that are openai calls.
+The end goal is to create a chatbot that can exist on multiple discord servers simultaneously.
+It will generate responses to users with a call to a langchain agent, which make the api call to openai.
+The langchain agent will have a long-term memory of the conversations it has had with a user.
+The long-term memory will be stored as a vector database, on pinecone.io with a uuid and a vector of the text.
 
+Ihe text of the memory is stored locally in a json file with the following fields:
+-message
+-speaker
+-time
+-timestring
+-uuid
+-server
+the filename is the uuid of the memory.
+
+The bot will build a profile of each user locally as a json file with the following fields:
+-username (the discord username)
+-user_id (the discord user id)
+-name (the name of the user, as they have told the bot)
+-location (the location of the user, as they have told the bot)
+-servers (a list of all the servers the user is on)
+-list of uuids (for all memories associated with the user)
+-description (a summary of all the information that the llm can derive from the text of the user's memories)
+-rulebook (a list of any rules that user has added to the bot)
+-tone (a description of the tone the user typically uses, so that the bot can generate responses in the same tone)
+filename is the user_id
+
+The bot will build a profile of each server locally as a json file with the following fields:
+-servername (the discord server name)
+-server_id (the discord server id)
+-users (a list of all the users on the server)
+-list of uuids (for all memories associated with the server)
+-description (a summary of all the information that the llm can derive from the text of the server's memories)
+filename is server_id
+
+The bot will use langchain tools to access information from various sources on the internet.
+- google search api
+- wolfram alpha api
+- docsearch over the contents of the discord server
+- user memory recall (maybe, or maybe use langchain's built in memory functions?)
+- llm-math
+- weather/news headlines
+- wikipedia
+- summary of any link posted in chat
+
+The bot will operate asynchronously, so that it can respond to multiple users simultaneously.
+
+The bot will generate its response using gpt3.5, but the system message that is sent to the bot will be
+composed dynamically by text-davinci-003.
+davinci is 10x more expensive so the dynamic composition of the prompt should only happen occasionally, not every message
+
+
+for the call to gp3.5, the prompt will be composed of the following fields:
+The {system} message will be composed of the following fields, and processed through the langchain pipeline:
+- main BORT Prompt
+- username
+- user description
+- server description
+- recent user memories
+- recent server memories
+- relevant server memories
+- relevant user memories
+- user tone
+- user rules
+- server rules
+the {messages} filed will be composed of the most recent messages in the channel.
+The {user} field will be the user's discord ID.
+
+The llm will evaluate its own responses to make sure they are appropriate, and safe.
 """
 
-import asyncio
-import datetime
 import os
-import openai
+import sys
+import time
 import json
-from time import time, sleep
-from uuid import uuid4
-import pinecone
-import tiktoken
-from langchain.llms import OpenAI
-from langchain import PromptTemplate
-from langchain.agents import initialize_agent, load_tools
+import random
+import asyncio
 import disnake
+from langchain.prompts.chat import (
+    ChatPromptTemplate,
+    MessagesPlaceholder,
+    SystemMessagePromptTemplate,
+    HumanMessagePromptTemplate
+)
+from langchain.llms import (
+    OpenAIChat,
+)
+from langchain.schema import (
+    AIMessage,
+    HumanMessage,
+    SystemMessage
+)
+from langchain.embeddings.openai import OpenAIEmbeddings
+from langchain.vectorstores import Pinecone
+
+import pinecone
+
 from disnake.ext import commands
 
 
-class Bort(commands.Cog):
-    def __init__(self):
-        self.intents = disnake.Intents.all()
-        self.bot = commands.Bot(
-            command_prefix='/',
-            intents=self.intents
-        )
-        self.context_size = CONFIG['context_size']
-        self.recent_message_count = CONFIG['recent_message_count']
-        self.token_limit = CONFIG['token_limit']
-        self.prompt_file = CONFIG['prompt_file']
-        self.discord_token = os.environ.get(CONFIG["env_vars"]["sandbox_discord_token"])
-        self.wolfram_id = os.environ.get(CONFIG["env_vars"]["wolfram_id"])
-        self.google_id = os.environ.get(CONFIG["env_vars"]["google_id"])
-        self.google_key = os.environ.get(CONFIG["env_vars"]["google_key"])
-        self.pinecone_key = os.environ.get(CONFIG["env_vars"]["pinecone_key_env"])
-        self.gpt_settings = CONFIG['gpt_settings']
-        self.intents = disnake.Intents.all()
-        self.chat_llm = OpenAI(
-            model_name=CONFIG['gpt_chat_model'],
-            temperature=gpt_settings['chat_temp'],
-            top_p=gpt_settings['top_p']
-        )
-        self.util_llm = OpenAI(
-            model_name=CONFIG['gpt_util_model'],
-            temperature=gpt_settings['util_temp'],
-            top_p=gpt_settings['top_p']
-        )
-        self.tools = load_tools(
-            [
-                'llm-math',
-                'google-search',
-                'wolfram-alpha'
-            ],
-            llm=self.util_llm
-        )
-        self.agent = initialize_agent(
-            llm=self.chat_llm,
-            tools=self.tools,
-            prompt_template=str(),
-            token_limit=self.token_limit,
-            context_size=self.context_size,
-            recent_message_count=self.recent_message_count
-        )
+CONFIG = json.load(open('config.json'))
 
 
-class User:
-    def __init__(self, ctx):
-        self.user_id = ctx.author.id
-        self.channel_id = ctx.channel.id
-        self.all_messages = []
-        self.most_recent_message = str()
-        self.custom_rules = []
-        self.summary = str()
+async def parse_message(message):
+    text = message.content
+    user_id = message.author.id
+    user_name = message.author.name
+    server = message.guild.name
+    server_id = message.guild.id
+    channel = message.channel.name
+    channel_id = message.channel.id
+    moderation_results = await get_moderation_results(message)
+    recent_messages = await get_recent_messages(message)
+    similar_memories = await get_similar_memories(message)
+    user_rules = await get_user_rules(message)
+    server_rules = await get_server_rules(message)
+    user_profile = await get_user_profile(message)
+    constitution = await get_constitution(message)
+    system_prompt = await build_system_prompt(message)
+    vector = embed_text(text)
+    parsed_message = {
+        'text': text,
+        'user_id': user_id,
+        'user_name': user_name,
+        'server': server,
+        'server_id': server_id,
+        'channel': channel,
+        'channel_id': channel_id,
+        'moderation_results': moderation_results,
+        'recent_messages': recent_messages,
+        'similar_memories': similar_memories,
+        'user_rules': user_rules,
+        'server_rules': server_rules,
+        'user_profile': user_profile,
+        'constitution': constitution,
+        'system_prompt': system_prompt,
+        'vector': vector
+    }
+    return parsed_message
 
 
-class Conversation:
-    def __init__(self, ctx, user):
-        self.user_id = ctx.author.id
-        self.channel_id = ctx.channel.id
-        self.messages = []
-        self.system_message = str()
-        self.user = user
-        self.user_summary = user.summary
-        self.user_custom_rules = user.custom_rules
+async def generate_response(prompt, llm):
+    response = await llm.agenerate(prompt)
+    return response
 
-
-
-# load config vars
-with open('config.json', 'r', encoding='utf-8') as infile:
-    CONFIG = json.load(infile)
-context_size = CONFIG['context_size']
-recent_message_count = CONFIG['recent_message_count']
-token_limit = CONFIG['token_limit']
-prompt_file = CONFIG['prompt_file']
-discord_token = os.environ.get(CONFIG["env_vars"]["sandbox_discord_token"])
-wolfram_id = os.environ.get(CONFIG["env_vars"]["wolfram_id"])
-google_id = os.environ.get(CONFIG["env_vars"]["google_id"])
-google_key = os.environ.get(CONFIG["env_vars"]["google_key"])
-pinecone_key = os.environ.get(CONFIG["env_vars"]["pinecone_key_env"])
-
-# Initialize pinecone, langchain, and discord
-intents = disnake.Intents.all()
-bort = commands.Bot(
-    intents=intents,
-    command_prefix='/'
-)
-pinecone.init(
-    api_key=pinecone_key,
-    environment=CONFIG["pinecone_environment"]
-)
-vdb = pinecone.Index(CONFIG["pinecone_index"])
-gpt_settings = CONFIG['gpt_settings']
-llm = OpenAI(
-    model_name='text-davinci-003',
-    temperature=gpt_settings['temp'],
-    top_p=gpt_settings['top_p']
-)
-util_llm = OpenAI(
-    model_name=gpt_settings['engine'],
-    temperature=0.0,
-    top_p=gpt_settings['top_p']
-)
-tools = load_tools(
-    [
-        'llm-math',
-        'google-search',
-        'wolfram-alpha'
-    ],
-    llm=util_llm)
-bort_agent = initialize_agent(
-    tools=tools,
-    llm=llm,
-    agent="zero-shot-react-description")
-
-
-def vprint(*args, **kwargs):
-    if CONFIG['verbose']:
-        print(*args, **kwargs)
-
-
-def timestamp_to_datetime(unix_time):
-    return datetime.datetime.fromtimestamp(unix_time).strftime("%A, %B %d, %Y at %I:%M%p %Z")
-
-
-def count_tokens(text):
-    print('counting tokens')
-    encoding = tiktoken.get_encoding("gpt2")
-    num_tokens = len(encoding.encode(text))
-    vprint('num_tokens: %s' % num_tokens)
-    return num_tokens
-
-
-def gpt3_embedding(content, engine='text-embedding-ada-002'):
-    content = content.encode(encoding='ASCII', errors='ignore').decode()
-    response = openai.Embedding.create(input=content, engine=engine)
-    vector = response['data'][0]['embedding']  # this is a normal list
+def embed_text(text):
+    content = text.encode(encoding='ASCII', errors='ignore').decode()
+    vector = OpenAIEmbeddings.embed_query(content)
     return vector
 
 
-def get_response(prompt, agent):
-    # get a response from the agent
-    response = agent.run(prompt)
-    return response
-
-
-def save_memory(message, vdb):
-    # save a memory
-    # vectorize the message
-    vector = gpt3_embedding(message)
-    unique_id = str(uuid4())
-    save_vector_to_pinecone(vector, unique_id, vdb)
-    save_message_to_json(message, unique_id)
-    pass
-
-
-def save_message_to_json(message, unique_id):
-    # save a message to the json file
-    pass
-
-
-def get_similar_memories(query):
-    # get similar memories from the vdb
-    pass
-
-
-def get_recent_memories():
-    # get recent memories from the vdb
-    pass
-
-
-def save_vector_to_pinecone(vector, memory, vdb):
-    # save vector to vdb
-    pass
-
-
-def trim_prompt(prompt):
-    print('trimming prompt')
-    limit = CONFIG['token_limit']
-    tokens = count_tokens(prompt)
-    if tokens > limit:
-        print('trimming prompt')
-        lines = prompt.splitlines()
-        while tokens > limit:
-            lines = lines[1:]
-            prompt = '  '.join(lines)
-            tokens = count_tokens(prompt)
-    return prompt
-
-
-def process_message(discord_text):
-    with open(CONFIG['langchain_file'], 'r', encoding='utf-8') as infile:
-        format_template = str(infile.read())
-    prompt = PromptTemplate(
-        template=format_template,
-        input_variables=['memories', 'recent', 'message']
-    )
-    memories = get_similar_memories(discord_text)
-    recent = get_recent_memories()
-    message = discord_text
-    prompt = prompt.format(memories=memories, recent=recent, message=message)
-    prompt = trim_prompt(prompt)
-    response = get_response(prompt)
-    return response
-
-
-async def send_response(ctx, discord_text, response):
-    chunk_size = 1500
-    user = ctx.author.name
-    try:
-        if not ctx.author.bot:
-            if len(response) > chunk_size:
-                chunks = []
-                current_chunk = ""
-                for word in response.split():
-                    if len(current_chunk + word) + 1 > chunk_size:
-                        chunks.append(current_chunk + "...")
-                        current_chunk = ""
-                    current_chunk += word + " "
-                chunks.append(current_chunk)
-                for chunk in chunks:
-                    chunk = chunk.replace(':', ':\n')
-                    chunk = chunk.replace('*', '\n*')
-                    print(chunk)
-                    await ctx.send(f"```{chunk}```")
-                    sleep(3)
-            else:
-                response = response.replace(':', ':\n')
-                response = response.replace('**', '\n**')
-                print(response)
-                await ctx.send(f"```{response}```")
-    except Exception as oops:
-        await ctx.channel.send(f'Error: {oops} \n {user}: {discord_text[:20]}...')
-        print(f'Error: {oops} \n {user}: {discord_text[:20]}...')
-
-
-@bort.command()
-async def b(ctx, *args):
-    discord_text = " ".join(args)
-    response = await asyncio.get_event_loop().run_in_executor(None, process_message, discord_text)
-    await send_response(ctx, discord_text, response)
-
-
 def main():
-    try:
-        bort.run(os.environ['SANDBOX_DISCORD_TOKEN'])
-    except Exception as oops:
-        print("ERROR IN MAIN", oops)
+    bot = commands.Bot(command_prefix="/")
+    bot.remove_command('help')
+    llm = OpenAIChat(
+        model_name=CONFIG["gpt_settings"]["engine"],
+        temperature=CONFIG["gpt_settings"]["temp"],
+        max_tokens=CONFIG["gpt_settings"]["max_tokens"],
+        top_p=CONFIG["gpt_settings"]["top_p"],
+        frequency_penalty=CONFIG["gpt_settings"]["freq_pen"],
+        presence_penalty=CONFIG["gpt_settings"]["pres_pen"],
+    )
+    pinecone.init(
+        api_key=os.environ.get('PINECONE_API_KEY'),
+        environment=CONFIG["pinecone_environment"]
+    )
+    index_name = CONFIG["pinecone_index"]
+
+    @bot.event
+    async def on_ready():
+        print(f'{bot.user} has connected to Discord!')
+        await bot.change_presence(activity=disnake.Game(name="with your feelings"))
+
+    @bot.event
+    async def on_message(message):
+        if message.author == bot.user:
+            return
+        if message.content.startswith(CONFIG['prefix']) or message.channel.id == os.environ['BORT_DISCORD_CHAN_ID']:
+            parsed_message = await parse_message(message)
+            await save_message(parsed_message)
+            prompt = await build_prompt(parsed_message)
+            response = await generate_response(prompt, llm)
+            await save_response(response)
+            await send_response(response)
+        if message.content.startswith('!'):
+            return
+        if message.content.startswith('?'):
+            return
+        if message.content.startswith('.'):
+            return
+        if message.content.startswith('!'):
+            return
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     main()
+
+"""
+"""

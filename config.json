@@ -29,5 +29,10 @@
     "tokens": 1024,
     "freq_pen": 0.0,
     "pres_pen": 0.0
-    }
+    },
+  "gpt_embed_settings": {
+    "engine": "text-embedding-ada-002",
+    "dimensions": 1536,
+    "max_tokens": 8191,
+  }
 }
