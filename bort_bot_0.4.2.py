@@ -127,7 +127,7 @@ if __name__ == "__main__":
 
     @bort.event
     async def on_ready():
-        channel = bort.get_channel(int(os.environ['SANDBOX_DISCORD_CHAN_ID']))
+        channel = bort.get_channel(int(os.environ['BORT_DISCORD_CHAN_ID']))
         if channel is not None:
             await channel.send(f"{bort.user} has connected to Discord!")
             print(f"{bort.user} has connected to Discord!")
@@ -149,7 +149,7 @@ if __name__ == "__main__":
 
         if message.content.startswith('/bort') or \
                 message.content.startswith('/Bort') or \
-                message.channel.id == int(os.environ['SANDBOX_DISCORD_CHAN_ID']):
+                message.channel.id == int(os.environ['BORT_DISCORD_CHAN_ID']):
             print('sending message to process')
             output = await process_message(message)
             message_parts = [output[i:i + limit] for i in range(0, len(output), limit)]
@@ -163,4 +163,4 @@ if __name__ == "__main__":
             vprint('message: %s' % output)
 
 
-    bort.run(os.environ['SANDBOX_DISCORD_TOKEN'])
+    bort.run(os.environ['BORT_DISCORD_TOKEN'])
