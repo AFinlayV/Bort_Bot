@@ -34,9 +34,9 @@ def load_json(filepath):
 def init_discord_client():
     intents = discord.Intents.all()
     client = discord.Client(intents=intents,
-                          shard_id=0,
-                          shard_count=1,
-                          reconnect=True)
+                            shard_id=0,
+                            shard_count=1,
+                            reconnect=True)
     return client
 
 
@@ -59,12 +59,14 @@ def save_json(filepath, payload):
 def timestamp_to_datetime(unix_time):
     return datetime.datetime.fromtimestamp(unix_time).strftime("%A, %B %d, %Y at %I:%M%p %Z")
 
+
 def count_tokens(text):
     print('counting tokens')
     encoding = tiktoken.get_encoding("gpt2")
     num_tokens = len(encoding.encode(text))
     vprint('num_tokens: %s' % num_tokens)
     return num_tokens
+
 
 def gpt3_embedding(content, engine='text-embedding-ada-002'):
     content = content.encode(encoding='ASCII', errors='ignore').decode()
@@ -167,6 +169,7 @@ def trim_prompt(prompt):
             tokens = count_tokens(prompt)
     return prompt
 
+
 def process_message(discord_message):
     context_size = CONFIG['context_size']
     recent_message_count = CONFIG['recent_message_count']
@@ -196,9 +199,9 @@ def process_message(discord_message):
             results, server_id)  # results should be a DICT with 'matches' which is a LIST of DICTS, with 'id'
         recent = get_last_messages(recent_message_count, server_id)
         print('conversation: %s' % conversation)
-        prompt = open_file(prompt_file)\
-            .replace('<<CONVERSATION>>', conversation)\
-            .replace('<<RECENT>>', recent)\
+        prompt = open_file(prompt_file) \
+            .replace('<<CONVERSATION>>', conversation) \
+            .replace('<<RECENT>>', recent) \
             .replace('<<MESSAGE>>', message)
         num_tokens = count_tokens(prompt)
         while num_tokens > token_limit:

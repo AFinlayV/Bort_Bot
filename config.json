@@ -23,16 +23,26 @@
   "pinecone_environment": "us-east1-gcp",
   "pinecone_index": "bort",
   "gpt_settings": {
-    "engine":"gpt-3.5-turbo",
+    "engine":"text-davinci-003",
     "temp": 0.7,
     "top_p": 1.0,
     "tokens": 1024,
     "freq_pen": 0.0,
     "pres_pen": 0.0
     },
+  "gpt_chat_settings": {
+    "model": "gpt-3.5-turbo",
+    "temperature": 0.7,
+    "top_p": 1.0,
+    "max_tokens": 1024,
+    "frequency_penalty": 0.0,
+    "presence_penalty": 0.0,
+    "stop": [],
+    "logit_bias": {}
+    },
   "gpt_embed_settings": {
     "engine": "text-embedding-ada-002",
     "dimensions": 1536,
-    "max_tokens": 8191,
+    "max_tokens": 8191
   }
 }

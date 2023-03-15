@@ -79,6 +79,9 @@ import time
 import json
 import random
 import asyncio
+import logging
+import datetime
+import openai
 import disnake
 from langchain.prompts.chat import (
     ChatPromptTemplate,
@@ -101,11 +104,125 @@ import pinecone
 
 from disnake.ext import commands
 
-
 CONFIG = json.load(open('config.json'))
+CHANNEL_ENV_NAME = "SANDBOX_DISCORD_CHAN_ID"
+TOKEN_ENV_NAME = "SANDBOX_DISCORD_TOKEN"
 
 
-async def parse_message(message):
+def load_json(filepath):
+    with open(filepath, 'r', encoding='utf-8') as infile:
+        return json.load(infile)
+
+
+def save_json(filepath, data):
+    with open(filepath, 'w', encoding='utf-8') as outfile:
+        json.dump(data, outfile, indent=4, ensure_ascii=False)
+
+
+def save_message(message):
+    pass
+
+
+def get_moderation_results(message):
+    text = message.content
+    mod_res = openai.Moderation.create()
+    return mod_res
+
+
+def get_recent_messages(message, num=10):
+    recent_messages = []
+    # load the nexus folder for every json file in the folder
+    # for each json file, load the json file to a dict, append the dict to the recent_messages list
+    filelist = os.listdir('nexus')
+    for file in filelist:
+        with open('nexus/' + file) as f:
+            recent_messages.append(json.load(f))
+    # filter out only messages with the same channel_id as the message
+    recent_messages = [message for message in recent_messages if message['channel_id'] == message.channel.id]
+    # sort the list by time
+    recent_messages = sorted(recent_messages, key=lambda k: k['time'])
+    # return the last 10 messages
+    recent_messages = recent_messages[-num:]
+    # filter out all fields except "message" and "speaker" into a dict with key as speaker and value as message
+    recent_messages = {message['speaker']: message['message'] for message in recent_messages}
+    return recent_messages
+
+
+def get_summary(text, max_length=100):
+    # use the openai summarization api to summarize the text
+    # return the summary
+    system_prompt = """
+You are an assistant to a chatbot who is having a conversation with a user. The bot has asked you to help it summarize messages
+and try to help it pick up on any details or themes present in the chats. you will me given a set of messages, and you will give a detailed verbose
+response that clearly tells the bot what past memories are relevant to the current conversation, and what the user has said in the past.
+    """
+    summary = openai.ChatCompletion.create(model="gpt-3.5-turbo",
+                                           max_length=max_length,
+                                           temperature=0,
+
+                                           messages=[
+                                               {"role": "system",
+                                                "content": system_prompt},
+                                               {"role": "assistant",
+                                                "content": "What is the text you would like for me to summarize"},
+                                               {"role": "user",
+                                                "content": text}
+                                           ]
+                                           )
+
+    return summary["choices"][0]["message"]["content"]
+
+
+def get_similar_memories(message):
+    # get a list of 10 memories that are most similar to the message from pinecone return a list of the uuid keys
+    # load the pinecone vector database
+    # get the vector for the message
+    # query the vector database for the 10 most similar vectors
+    # return the uuids of the 10 most similar vectors
+    server_id = message.guild.id
+    vdb = pinecone.Index(CONFIG["pinecone_index"])
+    query_vector = embed_text(message.content)
+    results = vdb.query(vector=query_vector, top_k=CONFIG["context_size"])
+    result = []
+    for m in results['matches']:
+        info = load_json('nexus/%s.json' % m['uuid'])
+        if info['server'] == server_id:
+            result.append(info)
+    summary = get_summary("\n".join([m['message'] for m in result]))
+    #get similar memories to the summary
+    query_vector = embed_text(summary)
+    results = vdb.query(vector=query_vector, top_k=CONFIG["context_size"])
+    for m in results['matches']:
+        info = load_json('nexus/%s.json' % m['uuid'])
+        result.append(info)
+        # return a list of the messages, in order by time
+    ordered = sorted(result, key=lambda d: d['time'], reverse=False)
+    messages = [i['message'] for i in ordered]
+    print('loaded %s messages' % len(messages))
+    return messages
+
+
+def get_user_rules(message):
+    pass
+
+
+def get_server_rules(message):
+    pass
+
+
+def get_user_profile(message):
+    pass
+
+
+def get_constitution(message):
+    pass
+
+
+def build_system_prompt(parsed_message):
+    pass
+
+
+def parse_message(message):
     text = message.content
     user_id = message.author.id
     user_name = message.author.name
@@ -113,14 +230,13 @@ async def parse_message(message):
     server_id = message.guild.id
     channel = message.channel.name
     channel_id = message.channel.id
-    moderation_results = await get_moderation_results(message)
-    recent_messages = await get_recent_messages(message)
-    similar_memories = await get_similar_memories(message)
-    user_rules = await get_user_rules(message)
-    server_rules = await get_server_rules(message)
-    user_profile = await get_user_profile(message)
-    constitution = await get_constitution(message)
-    system_prompt = await build_system_prompt(message)
+    moderation_results = get_moderation_results(message)
+    recent_messages = get_recent_messages(message)
+    similar_memories = get_similar_memories(message)
+    # user_rules = get_user_rules(message)
+    # server_rules = get_server_rules(message)
+    # user_profile = get_user_profile(message)
+    # constitution = get_constitution(message)
     vector = embed_text(text)
     parsed_message = {
         'text': text,
@@ -133,19 +249,27 @@ async def parse_message(message):
         'moderation_results': moderation_results,
         'recent_messages': recent_messages,
         'similar_memories': similar_memories,
-        'user_rules': user_rules,
-        'server_rules': server_rules,
-        'user_profile': user_profile,
-        'constitution': constitution,
-        'system_prompt': system_prompt,
+        # 'user_rules': user_rules,
+        # 'server_rules': server_rules,
+        # 'user_profile': user_profile,
+        # 'constitution': constitution,
         'vector': vector
     }
     return parsed_message
 
 
+def build_prompt(parsed_message):
+    pass
+
+
 async def generate_response(prompt, llm):
     response = await llm.agenerate(prompt)
     return response
+
+
+async def send_message(message, response):
+    await message.channel.send(response)
+
 
 def embed_text(text):
     content = text.encode(encoding='ASCII', errors='ignore').decode()
@@ -168,32 +292,30 @@ def main():
         api_key=os.environ.get('PINECONE_API_KEY'),
         environment=CONFIG["pinecone_environment"]
     )
-    index_name = CONFIG["pinecone_index"]
 
     @bot.event
     async def on_ready():
         print(f'{bot.user} has connected to Discord!')
-        await bot.change_presence(activity=disnake.Game(name="with your feelings"))
+
+
 
     @bot.event
     async def on_message(message):
         if message.author == bot.user:
             return
-        if message.content.startswith(CONFIG['prefix']) or message.channel.id == os.environ['BORT_DISCORD_CHAN_ID']:
+        if message.content.startswith(CONFIG['prefix']) or message.channel.id == os.environ[CHANNEL_ENV_NAME]:
             parsed_message = await parse_message(message)
             await save_message(parsed_message)
+            system_prompt = await build_system_prompt(parsed_message)
             prompt = await build_prompt(parsed_message)
             response = await generate_response(prompt, llm)
-            await save_response(response)
-            await send_response(response)
+            await save_message(response)
+            await send_message(response)
         if message.content.startswith('!'):
             return
-        if message.content.startswith('?'):
-            return
-        if message.content.startswith('.'):
-            return
-        if message.content.startswith('!'):
-            return
+
+    bot.run(os.environ[TOKEN_ENV_NAME])
+
 
 
 if __name__ == '__main__':
