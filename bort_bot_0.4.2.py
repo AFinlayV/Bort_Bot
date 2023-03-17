@@ -164,9 +164,14 @@ async def on_message(message):
         await reply(ctx, message)
     await bot.process_commands(message)
 
+bot_token = os.environ.get("BORT_DISCORD_TOKEN")
+if bot_token is None:
+    print("Error: BORT_DISCORD_TOKEN environment variable not found.")
+    exit(1)
 
 # Run the bot with your token
-bot.run(os.environ.get("BORT_DISCORD_TOKEN"))
+bot.run(bot_token)
+
 
 """
 """
