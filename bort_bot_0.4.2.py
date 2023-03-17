@@ -127,7 +127,7 @@ class GPT4Chat:
 
 # Create a bot instance with the command prefix you'd like to use
 intents = discord.Intents.all()
-bot = commands.Bot(command_prefix="!")
+bot = commands.Bot(intents=intents, command_prefix="!")
 
 # Load the GPT-4 chat model (modify this according to your model loading method)
 gpt4_chat = GPT4Chat()
