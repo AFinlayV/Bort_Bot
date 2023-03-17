@@ -133,7 +133,7 @@ bot = commands.Bot(intents=intents, command_prefix="/")
 gpt4_chat = GPT4Chat()
 
 # Set up the channel ID
-BORT_DISCORD_CHANNEL_ID = int(os.environ.get("BORT_DISCORD_CHAN_ID"))
+BORT_DISCORD_CHANNEL_ID = 1071975175802851461
 
 
 @bot.event
@@ -159,7 +159,7 @@ async def bort(ctx, *, question):
 @bot.event
 async def on_message(message):
     if not message.author.bot and (
-            message.channel.id == 1071975175802851461):
+            message.channel.id == BORT_DISCORD_CHANNEL_ID):
         ctx = await bot.get_context(message)
         await reply(ctx, message)
     await bot.process_commands(message)
