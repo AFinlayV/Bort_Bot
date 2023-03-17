@@ -126,6 +126,7 @@ class GPT4Chat:
 
 
 # Create a bot instance with the command prefix you'd like to use
+intents = discord.Intents.all()
 bot = commands.Bot(command_prefix="!")
 
 # Load the GPT-4 chat model (modify this according to your model loading method)
@@ -139,8 +140,9 @@ async def on_ready():
 @bot.command()
 async def chat(ctx, *, question):
     # Generate a response from your GPT4Chat class (modify this according to your response generation method)
-    response = gpt4_chat.generate_response(question)
-    await ctx.send(f"{response}")
+    if not ctx.author.bot:
+        response = gpt4_chat.generate_response(question)
+        await ctx.send(f"{response}")
 
 # Run the bot with your token
 bot.run(os.environ.get("BORT_DISCORD_TOKEN"))
