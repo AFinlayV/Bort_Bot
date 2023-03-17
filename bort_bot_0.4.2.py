@@ -21,7 +21,7 @@ class GPT4Chat:
         self.memory_limit = 30
 
     def load_config(self):
-        with open("config.json", "r") as config_file:
+        with open("config4.json", "r") as config_file:
             return json.load(config_file)
 
     def vprint(self, *args, **kwargs):
@@ -127,22 +127,43 @@ class GPT4Chat:
 
 # Create a bot instance with the command prefix you'd like to use
 intents = discord.Intents.all()
-bot = commands.Bot(intents=intents, command_prefix="!")
+bot = commands.Bot(intents=intents, command_prefix="/")
 
 # Load the GPT-4 chat model (modify this according to your model loading method)
 gpt4_chat = GPT4Chat()
+
+# Set up the channel ID
+BORT_DISCORD_CHANNEL_ID = int(os.environ.get("BORT_DISCORD_CHAN_ID"))
 
 
 @bot.event
 async def on_ready():
     print(f"We have logged in as {bot.user}")
 
-@bot.command()
-async def chat(ctx, *, question):
-    # Generate a response from your GPT4Chat class (modify this according to your response generation method)
-    if not ctx.author.bot:
+
+async def reply(ctx, message):
+    if ctx.channel.id == BORT_DISCORD_CHANNEL_ID or message.content.startswith("/bort"):
+        # Generate a response from your GPT4Chat class (modify this according to your response generation method)
+        print('generating response...')
+        question = message.content.replace("/bort", "").strip()
         response = gpt4_chat.generate_response(question)
         await ctx.send(f"{response}")
+
+
+@bot.command()
+async def bort(ctx, *, question):
+    if not ctx.author.bot:
+        await reply(ctx, ctx.message)
+
+
+@bot.event
+async def on_message(message):
+    if not message.author.bot and (
+            message.channel.id == BORT_DISCORD_CHANNEL_ID):
+        ctx = await bot.get_context(message)
+        await reply(ctx, message)
+    await bot.process_commands(message)
+
 
 # Run the bot with your token
 bot.run(os.environ.get("BORT_DISCORD_TOKEN"))
