@@ -159,7 +159,7 @@ async def bort(ctx, *, question):
 @bot.event
 async def on_message(message):
     if not message.author.bot and (
-            message.channel.id == BORT_DISCORD_CHANNEL_ID):
+            message.channel.id == 1071975175802851461):
         ctx = await bot.get_context(message)
         await reply(ctx, message)
     await bot.process_commands(message)
