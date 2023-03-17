@@ -1,166 +1,146 @@
-"""
-ARHHHHHGHGHGHGhhh I'll just have gpt4 do it...
-
-Here goes nothing...
-"""
-import datetime
-import openai
-import pinecone
-import os
-import json
-from uuid import uuid4
-from time import time
-import heapq
 import discord
-import asyncio
-
-with open('config.json') as f:
-    CONFIG = json.load(f)
-
-
-def vprint(*args, **kwargs):
-    if CONFIG['verbose']:
-        print(*args, **kwargs)
-
-
-def init_discord_client():
-    intents = discord.Intents.all()
-    client = discord.Client(intents=intents,
-                            shard_id=0,
-                            shard_count=1,
-                            reconnect=True)
-    return client
+from discord.ext import commands
+import openai
+import tiktoken
+import json
+import os
+import uuid
+from datetime import datetime
+from glob import glob
 
 
-def retrieve_related_memories(message):
-    # Retrieve related memories based on the given message
-    vector = gpt3_embedding(message.content)
-    relevant_memories = vdb.query(vector=vector, top_k=10)
+# Your GPT4Chat class
 
-    recent_memories = heapq.nlargest(10, os.listdir("nexus"), key=lambda f: os.path.getmtime(os.path.join("nexus", f)))
-    recent_memories = [json.load(open(os.path.join("nexus", memory_file))) for memory_file in recent_memories]
+class GPT4Chat:
+    def __init__(self):
+        self.VERBOSE = False
+        self.config = self.load_config()
+        openai.api_key = os.environ.get("OPENAI_API_KEY")
+        self.conversation_memory = [{"role": "system", "content": self.config["system_prompt"]}]
+        os.makedirs("log", exist_ok=True)
+        self.memory_limit = 30
 
-    memories = [json.load(open(os.path.join("nexus", key))) for key in relevant_memories.keys()]
+    def load_config(self):
+        with open("config.json", "r") as config_file:
+            return json.load(config_file)
 
-    return memories + recent_memories
+    def vprint(self, *args, **kwargs):
+        if self.VERBOSE:
+            print(*args, **kwargs)
 
+    def load_recent_memories(self):
+        log_files = glob("log/*.json")
+        log_files.sort(key=os.path.getmtime)
 
-async def process_message(message):
-    retrieved_memories = retrieve_related_memories(message)
-    system_message = get_system_message_from_memories(retrieved_memories)
-    user_message = {"role": "user", "content": message.content}
+        recent_messages = []
+        for log_file in log_files[-self.memory_limit:]:
+            with open(log_file, 'r') as f:
+                log_data = json.load(f)
+                recent_messages.append({"role": log_data["speaker"], "content": log_data["message"]})
 
-    assistant_messages = [{"role": "assistant", "content": memory["message"]} for memory in retrieved_memories]
+        return recent_messages
 
-    messages_list = [system_message] + assistant_messages + [user_message]
-    prompt = get_prompt(message.author.id, messages_list)
+    def num_tokens_from_messages(self, messages, model="gpt-4"):
+        try:
+            encoding = tiktoken.encoding_for_model(model)
+        except KeyError:
+            encoding = tiktoken.get_encoding("cl100k_base")
 
-    response = openai.ChatCompletion.create(**prompt)
-    output = response.choices[0]['message']['content'].strip()
-
-    return {"output": output, "message_id": message.id}
-
-
-def timestamp_to_datetime(unix_time):
-    return datetime.datetime.fromtimestamp(unix_time).strftime("%A, %B %d, %Y at %I:%M%p %Z")
-
-
-def save_json(filepath, payload):
-    with open(filepath, 'w', encoding='utf-8') as outfile:
-        json.dump(payload, outfile, ensure_ascii=False, sort_keys=True, indent=2)
-
-
-def gpt3_embedding(content, engine='text-embedding-ada-002'):
-    content = content.encode(encoding='ASCII', errors='ignore').decode()
-    response = openai.Embedding.create(input=content, engine=engine)
-    vector = response['data'][0]['embedding']  # this is a normal list
-    return vector
-
-
-def summarize_memories(memories):
-    summary = ""
-    for memory in memories:
-        speaker = memory["speaker"]
-        content = memory["message"]
-        summary += f"{speaker}: {content}\n"
-    return summary.strip()
-
-
-def get_system_message_from_memories(memories):
-    summary = summarize_memories(memories)
-    return {
-        "role": "system",
-        "content": f"Here's a summary of the previous related memories:\n{summary}"
-    }
-
-
-def save_memory(message, speaker, server_id):
-    timestamp = time()
-    timestring = timestamp_to_datetime(timestamp)
-    vector = gpt3_embedding(message)
-    unique_id = str(uuid4())
-    metadata = {'speaker': speaker, 'time': timestamp, 'message': message, 'timestring': timestring,
-                'uuid': unique_id, 'server': server_id}
-    save_json(os.path.join('nexus', f'{unique_id}.json'), metadata)
-    vdb.upsert([(unique_id, vector)])
-
-
-def get_prompt(user, messages_list):
-    prompt = {
-        "model": "gpt-3.5-turbo",
-        "messages": messages_list,
-        "temperature": CONFIG["gpt_chat_settings"]["temperature"],
-        "top_p": CONFIG["gpt_chat_settings"]["top_p"],
-        "max_tokens": CONFIG["gpt_chat_settings"]["max_tokens"],
-        "frequency_penalty": CONFIG["gpt_chat_settings"]["frequency_penalty"],
-        "presence_penalty": CONFIG["gpt_chat_settings"]["presence_penalty"],
-        "user": user,
-    }
-    return prompt
-
-
-if __name__ == "__main__":
-    bort = init_discord_client()
-    pinecone.init(api_key=os.environ.get('PINECONE_API_KEY'), environment=CONFIG["pinecone_environment"])
-    vdb = pinecone.Index(CONFIG["pinecone_index"])
-
-
-    @bort.event
-    async def on_ready():
-        channel = bort.get_channel(int(os.environ['BORT_DISCORD_CHAN_ID']))
-        if channel is not None:
-            await channel.send(f"{bort.user} has connected to Discord!")
-            print(f"{bort.user} has connected to Discord!")
+        if model.startswith("gpt-4"):
+            num_tokens = 0
+            for message in messages:
+                num_tokens += 4
+                for key, value in message.items():
+                    num_tokens += len(encoding.encode(value))
+                    if key == "name":
+                        num_tokens += -1
+            num_tokens += 2
+            return num_tokens
         else:
-            print("Channel not found")
+            raise NotImplementedError(f"""num_tokens_from_messages() is not presently implemented for model {model}.
+    See https://github.com/openai/openai-python/blob/main/chatml.md for information on how messages are converted to tokens.""")
+
+    def ensure_token_limit(self):
+        while True:
+            total_tokens = self.num_tokens_from_messages(self.conversation_memory)
+            if total_tokens < 7000:
+                break
+            else:
+                self.conversation_memory.pop(1)
+                self.conversation_memory.pop(1)
+
+    def save_message_to_log(self, message, speaker):
+        log_entry = {
+            "message": message,
+            "speaker": speaker,
+            "time": datetime.utcnow().timestamp(),
+            "timestring": datetime.utcnow().strftime("%A, %B %d, %Y at %I:%M%p "),
+            "uuid": str(uuid.uuid4()),
+        }
+
+        log_filename = os.path.join("log", f"{log_entry['uuid']}.json")
+
+        with open(log_filename, "w") as log_file:
+            json.dump(log_entry, log_file, indent=4)
+
+    def get_gpt_response(self, user_message):
+        self.update_conversation_memory("user", user_message)
+        self.save_message_to_log(user_message, "user")
+        self.ensure_token_limit()
+
+        prompt = {
+            "model": "gpt-4",
+            "messages": self.conversation_memory,
+            "temperature": self.config["gpt_chat_settings"]["temperature"],
+            "top_p": self.config["gpt_chat_settings"]["top_p"],
+            "max_tokens": self.config["gpt_chat_settings"]["max_tokens"],
+            "frequency_penalty": self.config["gpt_chat_settings"]["frequency_penalty"],
+            "presence_penalty": self.config["gpt_chat_settings"]["presence_penalty"],
+        }
+        self.vprint(prompt)
+        response = openai.ChatCompletion.create(**prompt)
+        gpt_response = response["choices"][0]["message"]["content"]
+        self.update_conversation_memory("assistant", gpt_response)
+        self.save_message_to_log(gpt_response, "assistant")
+
+        return gpt_response
+
+    def update_conversation_memory(self, role, content):
+        self.conversation_memory.append({"role": role, "content": content})
+
+    def generate_response(self, user_message):
+        return self.get_gpt_response(user_message)
+
+    def main(self):
+        self.conversation_memory.extend(self.load_recent_memories())
+
+        while True:
+            user_input = input("You: ")
+            if user_input.lower() == "exit":
+                break
+
+            for memory in self.conversation_memory:
+                self.vprint(memory["role"] + ":", memory["content"])
+            gpt_response = self.get_gpt_response(user_input)
+            print("GPT-4:", gpt_response)
 
 
-    @bort.event
-    async def on_message(message):
-        print('message received from discord from %s' % message.author.name)
-        vprint('message: %s' % message.content)
-        limit = CONFIG['discord_chunk_size']
-        if message.author == bort.user:
-            vprint('message from self, ignoring')
-            return
-        elif message.content.startswith('!') or message.content == "":
-            vprint('message is humans whispering, ignoring')
-            return
+# Create a bot instance with the command prefix you'd like to use
+bot = commands.Bot(command_prefix="!")
 
-        if message.content.startswith('/bort') or \
-                message.content.startswith('/Bort') or \
-                message.channel.id == int(os.environ['BORT_DISCORD_CHAN_ID']):
-            print('sending message to process')
-            output = await process_message(message)
-            message_parts = [output[i:i + limit] for i in range(0, len(output), limit)]
-
-            for part in message_parts:
-                if len(part) == limit:
-                    vprint('sending chunk to discord')
-                    part = part + '...'
-                await message.channel.send(part)
-            print("sent response to discord")
-            vprint('message: %s' % output)
+# Load the GPT-4 chat model (modify this according to your model loading method)
+gpt4_chat = GPT4Chat()
 
 
-    bort.run(os.environ['BORT_DISCORD_TOKEN'])
+@bot.event
+async def on_ready():
+    print(f"We have logged in as {bot.user}")
+
+@bot.command()
+async def chat(ctx, *, question):
+    # Generate a response from your GPT4Chat class (modify this according to your response generation method)
+    response = gpt4_chat.generate_response(question)
+    await ctx.send(f"{response}")
+
+# Run the bot with your token
+bot.run(os.environ.get("BORT_DISCORD_TOKEN"))
