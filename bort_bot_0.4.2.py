@@ -146,6 +146,8 @@ async def reply(ctx, message):
         # Generate a response from your GPT4Chat class (modify this according to your response generation method)
         print('generating response...')
         question = message.content.replace("/bort", "").strip()
+        if message.content.startswith("!"):
+            return # Ignore messages that start with !
         response = gpt4_chat.generate_response(question)
         await ctx.send(f"{response}")
 
