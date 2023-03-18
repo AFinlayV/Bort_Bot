@@ -7,20 +7,24 @@ import os
 import uuid
 from datetime import datetime
 from glob import glob
+import logging
+import asyncio
 
 
 # Your GPT4Chat class
 
 class GPT4Chat:
     def __init__(self):
-        self.VERBOSE = False
+        self.VERBOSE = True
         self.config = self.load_config()
         openai.api_key = os.environ.get("OPENAI_API_KEY")
         self.conversation_memory = [{"role": "system", "content": self.config["system_prompt"]}]
         os.makedirs("log", exist_ok=True)
         self.memory_limit = 30
+        self.respond_to_all_channels = self.config["respond_to_all_channels"]
 
     def load_config(self):
+        self.vprint("Loading config...")
         with open("config4.json", "r") as config_file:
             return json.load(config_file)
 
@@ -29,6 +33,7 @@ class GPT4Chat:
             print(*args, **kwargs)
 
     def load_recent_memories(self):
+        self.vprint("Loading recent memories...")
         log_files = glob("log/*.json")
         log_files.sort(key=os.path.getmtime)
 
@@ -41,6 +46,7 @@ class GPT4Chat:
         return recent_messages
 
     def num_tokens_from_messages(self, messages, model="gpt-4"):
+        self.vprint("Calculating number of tokens...")
         try:
             encoding = tiktoken.encoding_for_model(model)
         except KeyError:
@@ -61,6 +67,7 @@ class GPT4Chat:
     See https://github.com/openai/openai-python/blob/main/chatml.md for information on how messages are converted to tokens.""")
 
     def ensure_token_limit(self):
+        self.vprint("Ensuring token limit...")
         while True:
             total_tokens = self.num_tokens_from_messages(self.conversation_memory)
             if total_tokens < 7000:
@@ -70,6 +77,7 @@ class GPT4Chat:
                 self.conversation_memory.pop(1)
 
     def save_message_to_log(self, message, speaker):
+        self.vprint("Saving message to log...")
         log_entry = {
             "message": message,
             "speaker": speaker,
@@ -84,6 +92,7 @@ class GPT4Chat:
             json.dump(log_entry, log_file, indent=4)
 
     def get_gpt_response(self, user_message):
+        self.vprint("Getting GPT response...")
         self.update_conversation_memory("user", user_message)
         self.save_message_to_log(user_message, "user")
         self.ensure_token_limit()
@@ -106,12 +115,15 @@ class GPT4Chat:
         return gpt_response
 
     def update_conversation_memory(self, role, content):
+        self.vprint("Updating conversation memory...")
         self.conversation_memory.append({"role": role, "content": content})
 
     def generate_response(self, user_message):
+        self.vprint("Generating response...")
         return self.get_gpt_response(user_message)
 
     def main(self):
+        self.vprint("Loading recent memories...")
         self.conversation_memory.extend(self.load_recent_memories())
 
         while True:
@@ -136,20 +148,49 @@ gpt4_chat = GPT4Chat()
 BORT_DISCORD_CHANNEL_ID = 1071975175802851461
 
 
+
+async def split_response(text, max_length):
+    split_texts = []
+    while len(text) > max_length:
+        index = text.rfind(" ", 0, max_length)
+        if index == -1:
+            index = max_length
+        split_texts.append(text[:index])
+        text = text[index:].strip()
+    split_texts.append(text)
+    return split_texts
+
+
 @bot.event
 async def on_ready():
     print(f"We have logged in as {bot.user}")
 
 
+async def generate_and_send_response(ctx, question):
+    print('generating response...')
+    response = gpt4_chat.generate_response(question)
+    print('response generated')
+    await ctx.channel.send(response)
+
+@bot.event
+async def on_message(ctx):
+    if ctx.author == bot.user or ctx.content.startswith('!'):
+        return
+
+    question = ctx.content.strip()
+    asyncio.create_task(generate_and_send_response(ctx, question))
+
 async def reply(ctx, message):
-    if ctx.channel.id == BORT_DISCORD_CHANNEL_ID or message.content.startswith("/bort"):
-        # Generate a response from your GPT4Chat class (modify this according to your response generation method)
-        print('generating response...')
-        question = message.content.replace("/bort", "").strip()
-        if message.content.startswith("!"):
-            return # Ignore messages that start with !
-        response = gpt4_chat.generate_response(question)
-        await ctx.send(f"{response}")
+    # Generate a response from your GPT4Chat class (modify this according to your response generation method)
+    print('generating response...')
+    question = message.strip()
+    if message.startswith("!"):
+        return  # Ignore messages that start with !
+    response = gpt4_chat.generate_response(question)
+    print('response generated')
+    # Send the response
+    await ctx.send(response)
+
 
 
 @bot.command()
@@ -158,13 +199,15 @@ async def bort(ctx, *, question):
         await reply(ctx, ctx.message)
 
 
-@bot.event
-async def on_message(message):
-    if not message.author.bot and (
-            message.channel.id == BORT_DISCORD_CHANNEL_ID):
-        ctx = await bot.get_context(message)
-        await reply(ctx, message)
-    await bot.process_commands(message)
+# Set up logging
+logging.basicConfig(
+    level=logging.INFO,  # Change this to logging.DEBUG if you want more detailed logs.
+    format="%(asctime)s [%(levelname)s] %(message)s",
+    handlers=[
+        logging.StreamHandler(),  # Logs to console
+        logging.FileHandler("gpt4chat.log", mode="a")
+    ]
+)
 
 bot_token = os.environ.get("BORT_DISCORD_TOKEN")
 if bot_token is None:
@@ -173,7 +216,6 @@ if bot_token is None:
 
 # Run the bot with your token
 bot.run(bot_token)
-
 
 """
 """
