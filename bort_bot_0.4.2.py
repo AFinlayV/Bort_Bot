@@ -6,6 +6,7 @@ import json
 import os
 import uuid
 from datetime import datetime
+from time import sleep
 from glob import glob
 import logging
 import asyncio
@@ -117,6 +118,8 @@ class GPT4Chat:
     def update_conversation_memory(self, role, content):
         self.vprint("Updating conversation memory...")
         self.conversation_memory.append({"role": role, "content": content})
+        for memory in self.conversation_memory:
+            self.vprint(memory["role"] + ":", memory["content"])
 
     def generate_response(self, user_message):
         self.vprint("Generating response...")
@@ -148,8 +151,7 @@ gpt4_chat = GPT4Chat()
 BORT_DISCORD_CHANNEL_ID = 1071975175802851461
 
 
-
-async def split_response(text, max_length):
+def split_response(text, max_length):
     split_texts = []
     while len(text) > max_length:
         index = text.rfind(" ", 0, max_length)
@@ -166,45 +168,47 @@ async def on_ready():
     print(f"We have logged in as {bot.user}")
 
 
-async def generate_and_send_response(ctx, question):
+async def generate_and_send_response(channel, question):
     print('generating response...')
-    response = gpt4_chat.generate_response(question)
+    if question.startswith("!"):
+        return  # Ignore messages that start with !
+
+    loop = asyncio.get_event_loop()
+    response = await loop.run_in_executor(None, gpt4_chat.generate_response, question.strip())
     print('response generated')
-    await ctx.channel.send(response)
+
+    max_length = 2000  # Set your desired max_length
+    split_texts = split_response(response, max_length)
+    for split_text in split_texts:
+        await channel.send(split_text)
+        sleep(1)
+
+
 
 @bot.event
-async def on_message(ctx):
-    if ctx.author == bot.user or ctx.content.startswith('!'):
+async def on_message(message):
+    if message.author == bot.user:
         return
 
-    question = ctx.content.strip()
-    asyncio.create_task(generate_and_send_response(ctx, question))
-
-async def reply(ctx, message):
-    # Generate a response from your GPT4Chat class (modify this according to your response generation method)
-    print('generating response...')
-    question = message.strip()
-    if message.startswith("!"):
-        return  # Ignore messages that start with !
-    response = gpt4_chat.generate_response(question)
-    print('response generated')
-    # Send the response
-    await ctx.send(response)
-
+    if message.content.startswith('!'):
+        await bot.process_commands(message)  # Pass the message object instead of ctx
+    else:
+        question = message.content.strip()
+        await generate_and_send_response(message.channel, question)  # Pass the channel instead of ctx
 
 
 @bot.command()
 async def bort(ctx, *, question):
     if not ctx.author.bot:
-        await reply(ctx, ctx.message)
+        await generate_and_send_response(ctx, ctx.message.content)
 
 
 # Set up logging
 logging.basicConfig(
-    level=logging.INFO,  # Change this to logging.DEBUG if you want more detailed logs.
+    level=logging.INFO,
     format="%(asctime)s [%(levelname)s] %(message)s",
     handlers=[
-        logging.StreamHandler(),  # Logs to console
+        logging.StreamHandler(),
         logging.FileHandler("gpt4chat.log", mode="a")
     ]
 )
@@ -216,6 +220,3 @@ if bot_token is None:
 
 # Run the bot with your token
 bot.run(bot_token)
-
-"""
-"""
