@@ -32,13 +32,15 @@ class GPT4Chat:
         logging.info("Loading config...")
         with open("config4.json", "r") as config_file:
             return json.load(config_file)
+
     def ensure_token_count(self, message):
         logging.info("Ensuring token count...")
-        if self.token_count > 2048:
+        if self.token_count > self.config["prompt_token_limit"]:
             logging.info("Token count exceeded, reducing conversation memory by removing oldest messages...")
             self.conversation_memory.append({"role": "system", "content": self.config["system_prompt"]})
             self.token_count = self.num_tokens_from_messages([self.conversation_memory[-1]])
         self.token_count += self.num_tokens_from_messages([message])
+
     def load_recent_memories(self):
         logging.info("Loading recent memories...")
         memories = []
@@ -127,12 +129,10 @@ class GPT4Chat:
                 logging.info("Failed to get GPT response.")
                 return "I'm sorry, I'm having trouble understanding you. Please try again."
 
-
     def update_conversation_memory(self, role, content):
         logging.info("Updating conversation memory...")
         self.conversation_memory.append({"role": role, "content": content})
         self.token_count += 4
-
 
 
 # Create a bot instance with the command prefix you'd like to use
@@ -164,7 +164,6 @@ async def on_ready():
 
 
 async def generate_and_send_response(channel, question):
-
     if question.startswith("!"):
         return  # Ignore messages that start with !
     print('generating response...')
@@ -176,8 +175,10 @@ async def generate_and_send_response(channel, question):
     logging.info(f"Response: {response}")
     logging.info(f"Response length: {len(response)}")
     logging.info(f"Prompt token count: {gpt4_chat.num_tokens_from_messages(gpt4_chat.conversation_memory)}")
-    logging.info(f"Response token count: {gpt4_chat.num_tokens_from_messages([{'role': 'assistant', 'content': response}])}")
-    logging.info(f"Total token count: {gpt4_chat.num_tokens_from_messages(gpt4_chat.conversation_memory) + gpt4_chat.num_tokens_from_messages([{'role': 'assistant', 'content': response}])}")
+    logging.info(
+        f"Response token count: {gpt4_chat.num_tokens_from_messages([{'role': 'assistant', 'content': response}])}")
+    logging.info(
+        f"Total token count: {gpt4_chat.num_tokens_from_messages(gpt4_chat.conversation_memory) + gpt4_chat.num_tokens_from_messages([{'role': 'assistant', 'content': response}])}")
 
     max_length = 2000  # Set your desired max_length
     split_texts = split_response(response, max_length)
