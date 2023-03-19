@@ -7,53 +7,62 @@ import os
 import uuid
 from datetime import datetime
 from time import sleep
-from glob import glob
-import logging
 import asyncio
+import logging
+from pathlib import Path
 
-
-# Your GPT4Chat class
 
 class GPT4Chat:
     def __init__(self):
-        self.VERBOSE = True
+        logging.basicConfig(level=logging.INFO)
         self.config = self.load_config()
         openai.api_key = os.environ.get("OPENAI_API_KEY")
         self.conversation_memory = [{"role": "system", "content": self.config["system_prompt"]}]
         os.makedirs("log", exist_ok=True)
         self.memory_limit = 30
         self.respond_to_all_channels = self.config["respond_to_all_channels"]
+        self.token_count = self.num_tokens_from_messages([self.conversation_memory[-1]])
+
+        self.token_count = self.num_tokens_from_messages([self.conversation_memory[-1]])
+
+        # Load recent memories on startup
+        self.conversation_memory.extend(self.load_recent_memories())
 
     def load_config(self):
-        self.vprint("Loading config...")
+        logging.info("Loading config...")
         with open("config4.json", "r") as config_file:
             return json.load(config_file)
-
-    def vprint(self, *args, **kwargs):
-        if self.VERBOSE:
-            print(*args, **kwargs)
-
+    def ensure_token_count(self, message):
+        logging.info("Ensuring token count...")
+        if self.token_count > 2048:
+            logging.info("Token count exceeded, reducing conversation memory by removing oldest messages...")
+            self.conversation_memory.append({"role": "system", "content": self.config["system_prompt"]})
+            self.token_count = self.num_tokens_from_messages([self.conversation_memory[-1]])
+        self.token_count += self.num_tokens_from_messages([message])
     def load_recent_memories(self):
-        self.vprint("Loading recent memories...")
-        log_files = glob("log/*.json")
-        log_files.sort(key=os.path.getmtime)
-
-        recent_messages = []
-        for log_file in log_files[-self.memory_limit:]:
-            with open(log_file, 'r') as f:
-                log_data = json.load(f)
-                recent_messages.append({"role": log_data["speaker"], "content": log_data["message"]})
-
-        return recent_messages
+        logging.info("Loading recent memories...")
+        memories = []
+        for filename in os.listdir("log"):
+            with open(os.path.join("log", filename), "r") as log_file:
+                memories.append(json.load(log_file))
+        memories.sort(key=lambda x: x["time"], reverse=True)
+        # Format the memories to match the format of the conversation memory
+        for memory in memories:
+            memory["role"] = memory["speaker"]
+            memory["content"] = memory["message"]
+            del memory["speaker"]
+            del memory["message"]
+            del memory["time"]
+            del memory["timestring"]
+            del memory["uuid"]
+        return memories[:self.memory_limit]
 
     def num_tokens_from_messages(self, messages, model="gpt-4"):
-        self.vprint("Calculating number of tokens...")
         try:
             encoding = tiktoken.encoding_for_model(model)
         except KeyError:
             encoding = tiktoken.get_encoding("cl100k_base")
-
-        if model.startswith("gpt-4"):
+        if model == "gpt-4":
             num_tokens = 0
             for message in messages:
                 num_tokens += 4
@@ -64,21 +73,12 @@ class GPT4Chat:
             num_tokens += 2
             return num_tokens
         else:
-            raise NotImplementedError(f"""num_tokens_from_messages() is not presently implemented for model {model}.
+            raise NotImplementedError(
+                f"""num_tokens_from_messages() is not presently implemented for model {model}.
     See https://github.com/openai/openai-python/blob/main/chatml.md for information on how messages are converted to tokens.""")
 
-    def ensure_token_limit(self):
-        self.vprint("Ensuring token limit...")
-        while True:
-            total_tokens = self.num_tokens_from_messages(self.conversation_memory)
-            if total_tokens < 7000:
-                break
-            else:
-                self.conversation_memory.pop(1)
-                self.conversation_memory.pop(1)
-
     def save_message_to_log(self, message, speaker):
-        self.vprint("Saving message to log...")
+        logging.info("Saving message to log...")
         log_entry = {
             "message": message,
             "speaker": speaker,
@@ -93,51 +93,46 @@ class GPT4Chat:
             json.dump(log_entry, log_file, indent=4)
 
     def get_gpt_response(self, user_message):
-        self.vprint("Getting GPT response...")
-        self.update_conversation_memory("user", user_message)
-        self.save_message_to_log(user_message, "user")
-        self.ensure_token_limit()
+        max_tries = 5
+        tries = 0
+        try:
+            logging.info("Getting GPT response...")
+            self.update_conversation_memory("user", user_message)
+            self.save_message_to_log(user_message, "user")
 
-        prompt = {
-            "model": "gpt-4",
-            "messages": self.conversation_memory,
-            "temperature": self.config["gpt_chat_settings"]["temperature"],
-            "top_p": self.config["gpt_chat_settings"]["top_p"],
-            "max_tokens": self.config["gpt_chat_settings"]["max_tokens"],
-            "frequency_penalty": self.config["gpt_chat_settings"]["frequency_penalty"],
-            "presence_penalty": self.config["gpt_chat_settings"]["presence_penalty"],
-        }
-        self.vprint(prompt)
-        response = openai.ChatCompletion.create(**prompt)
-        gpt_response = response["choices"][0]["message"]["content"]
-        self.update_conversation_memory("assistant", gpt_response)
-        self.save_message_to_log(gpt_response, "assistant")
+            prompt = {
+                "model": "gpt-4",
+                "messages": self.conversation_memory,
+                "temperature": self.config["gpt_chat_settings"]["temperature"],
+                "top_p": self.config["gpt_chat_settings"]["top_p"],
+                "max_tokens": self.config["gpt_chat_settings"]["max_tokens"],
+                "frequency_penalty": self.config["gpt_chat_settings"]["frequency_penalty"],
+                "presence_penalty": self.config["gpt_chat_settings"]["presence_penalty"],
+            }
+            logging.info(prompt)
+            response = openai.ChatCompletion.create(**prompt)
+            gpt_response = response["choices"][0]["message"]["content"]
+            self.update_conversation_memory("assistant", gpt_response)
+            self.save_message_to_log(gpt_response, "assistant")
 
-        return gpt_response
+            return gpt_response
+        except Exception as e:
+            logging.error(e)
+            if tries < max_tries:
+                logging.info("Retrying...")
+                tries += 1
+                sleep(1)
+                return self.get_gpt_response(user_message)
+            else:
+                logging.info("Failed to get GPT response.")
+                return "I'm sorry, I'm having trouble understanding you. Please try again."
+
 
     def update_conversation_memory(self, role, content):
-        self.vprint("Updating conversation memory...")
+        logging.info("Updating conversation memory...")
         self.conversation_memory.append({"role": role, "content": content})
-        for memory in self.conversation_memory:
-            self.vprint(memory["role"] + ":", memory["content"])
+        self.token_count += 4
 
-    def generate_response(self, user_message):
-        self.vprint("Generating response...")
-        return self.get_gpt_response(user_message)
-
-    def main(self):
-        self.vprint("Loading recent memories...")
-        self.conversation_memory.extend(self.load_recent_memories())
-
-        while True:
-            user_input = input("You: ")
-            if user_input.lower() == "exit":
-                break
-
-            for memory in self.conversation_memory:
-                self.vprint(memory["role"] + ":", memory["content"])
-            gpt_response = self.get_gpt_response(user_input)
-            print("GPT-4:", gpt_response)
 
 
 # Create a bot instance with the command prefix you'd like to use
@@ -169,20 +164,26 @@ async def on_ready():
 
 
 async def generate_and_send_response(channel, question):
-    print('generating response...')
+
     if question.startswith("!"):
         return  # Ignore messages that start with !
-
+    print('generating response...')
+    logging.info(f"Message: {question}")
     loop = asyncio.get_event_loop()
-    response = await loop.run_in_executor(None, gpt4_chat.generate_response, question.strip())
+    response = await loop.run_in_executor(None, gpt4_chat.get_gpt_response, question.strip())
     print('response generated')
+    logging.info(f"System Prompt: {gpt4_chat.conversation_memory[0]['content']}")
+    logging.info(f"Response: {response}")
+    logging.info(f"Response length: {len(response)}")
+    logging.info(f"Prompt token count: {gpt4_chat.num_tokens_from_messages(gpt4_chat.conversation_memory)}")
+    logging.info(f"Response token count: {gpt4_chat.num_tokens_from_messages([{'role': 'assistant', 'content': response}])}")
+    logging.info(f"Total token count: {gpt4_chat.num_tokens_from_messages(gpt4_chat.conversation_memory) + gpt4_chat.num_tokens_from_messages([{'role': 'assistant', 'content': response}])}")
 
     max_length = 2000  # Set your desired max_length
     split_texts = split_response(response, max_length)
     for split_text in split_texts:
         await channel.send(split_text)
         sleep(1)
-
 
 
 @bot.event
