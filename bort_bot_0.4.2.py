@@ -9,8 +9,17 @@ from datetime import datetime
 from time import sleep
 import asyncio
 import logging
-from pathlib import Path
 
+# Set up logging
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(message)s",
+    handlers=[
+        logging.StreamHandler(),
+        logging.FileHandler("gpt4chat.log", mode="a")
+    ]
+)
+logging.info("Starting GPT4Chat...")
 
 class GPT4Chat:
     def __init__(self):
@@ -22,16 +31,22 @@ class GPT4Chat:
         self.memory_limit = 30
         self.respond_to_all_channels = self.config["respond_to_all_channels"]
         self.token_count = self.num_tokens_from_messages([self.conversation_memory[-1]])
-
+        self.model = "gpt-4"
         self.token_count = self.num_tokens_from_messages([self.conversation_memory[-1]])
 
         # Load recent memories on startup
         self.conversation_memory.extend(self.load_recent_memories())
+        if self.config["experimental"]:
+            self.model = "gpt-3.5-turbo"
 
     def load_config(self):
         logging.info("Loading config...")
         with open("config4.json", "r") as config_file:
-            return json.load(config_file)
+            config = json.load(config_file)
+            for key, value in config.items():
+                logging.info(f"{key}: {value}")
+            return config
+
 
     def ensure_token_count(self, message):
         logging.info("Ensuring token count...")
@@ -47,7 +62,7 @@ class GPT4Chat:
         for filename in os.listdir("log"):
             with open(os.path.join("log", filename), "r") as log_file:
                 memories.append(json.load(log_file))
-        memories.sort(key=lambda x: x["time"], reverse=True)
+        memories.sort(key=lambda x: x["time"])
         # Format the memories to match the format of the conversation memory
         for memory in memories:
             memory["role"] = memory["speaker"]
@@ -94,16 +109,15 @@ class GPT4Chat:
         with open(log_filename, "w") as log_file:
             json.dump(log_entry, log_file, indent=4)
 
-    def get_gpt_response(self, user_message):
+    def get_gpt_response(self, user_message, tries=0):
         max_tries = 5
-        tries = 0
         try:
             logging.info("Getting GPT response...")
             self.update_conversation_memory("user", user_message)
             self.save_message_to_log(user_message, "user")
 
             prompt = {
-                "model": "gpt-4",
+                "model": self.model,
                 "messages": self.conversation_memory,
                 "temperature": self.config["gpt_chat_settings"]["temperature"],
                 "top_p": self.config["gpt_chat_settings"]["top_p"],
@@ -111,7 +125,11 @@ class GPT4Chat:
                 "frequency_penalty": self.config["gpt_chat_settings"]["frequency_penalty"],
                 "presence_penalty": self.config["gpt_chat_settings"]["presence_penalty"],
             }
-            logging.info(prompt)
+            logging.info("Prompt:")
+            for key, value in prompt.items():
+                logging.info(f"{key}: {value}")
+            for message in prompt["messages"]:
+                logging.info(f"{message['role']}: {message['content']}")
             response = openai.ChatCompletion.create(**prompt)
             gpt_response = response["choices"][0]["message"]["content"]
             self.update_conversation_memory("assistant", gpt_response)
@@ -120,15 +138,18 @@ class GPT4Chat:
             return gpt_response
         except Exception as e:
             logging.error(e)
-            if tries < max_tries:
-                logging.info("Retrying...")
-                tries += 1
-                sleep(1)
+            if "maximum context length" in str(e):
+                logging.info("Too many tokens, reducing conversation memory by removing oldest messages...")
+                self.conversation_memory.append({"role": "system", "content": self.config["system_prompt"]})
+                self.token_count = self.num_tokens_from_messages([self.conversation_memory[-1]])
                 return self.get_gpt_response(user_message)
+            elif tries < max_tries:
+                logging.info("Retrying...")
+                sleep(1)
+                return self.get_gpt_response(user_message, tries + 1)
             else:
                 logging.info("Failed to get GPT response.")
-                return "I'm sorry, I'm having trouble understanding you. Please try again."
-
+                return f"I'm sorry, The server returned an error. Please try again. Error: {e}"
     def update_conversation_memory(self, role, content):
         logging.info("Updating conversation memory...")
         self.conversation_memory.append({"role": role, "content": content})
@@ -143,7 +164,13 @@ bot = commands.Bot(intents=intents, command_prefix="/")
 gpt4_chat = GPT4Chat()
 
 # Set up the channel ID
-BORT_DISCORD_CHANNEL_ID = 1071975175802851461
+if gpt4_chat.config["experimental"]:
+    CHAN_ID = gpt4_chat.config["experimental_channel"]
+    logging.info(f"Using experimental mode. {CHAN_ID}")
+else:
+    CHAN_ID = gpt4_chat.config["main_channel"]
+    logging.info(f"Using production mode. {CHAN_ID}")
+
 
 
 def split_response(text, max_length):
@@ -167,7 +194,7 @@ async def generate_and_send_response(channel, question):
     if question.startswith("!"):
         return  # Ignore messages that start with !
     print('generating response...')
-    logging.info(f"Message: {question}")
+    logging.info(f"Message: {question.strip()}")
     loop = asyncio.get_event_loop()
     response = await loop.run_in_executor(None, gpt4_chat.get_gpt_response, question.strip())
     print('response generated')
@@ -189,11 +216,12 @@ async def generate_and_send_response(channel, question):
 
 @bot.event
 async def on_message(message):
-    if message.author == bot.user:
+    if message.author == bot.user or message.author.bot:
         return
-
-    if message.content.startswith('!'):
+    elif message.content.startswith('!'):
         await bot.process_commands(message)  # Pass the message object instead of ctx
+    elif message.channel.id != CHAN_ID:
+        return
     else:
         question = message.content.strip()
         await generate_and_send_response(message.channel, question)  # Pass the channel instead of ctx
@@ -205,17 +233,12 @@ async def bort(ctx, *, question):
         await generate_and_send_response(ctx, ctx.message.content)
 
 
-# Set up logging
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s [%(levelname)s] %(message)s",
-    handlers=[
-        logging.StreamHandler(),
-        logging.FileHandler("gpt4chat.log", mode="a")
-    ]
-)
 
-bot_token = os.environ.get("BORT_DISCORD_TOKEN")
+if gpt4_chat.config["experimental"]:
+    bot_token = os.environ.get("SANDBOX_DISCORD_TOKEN")
+    logging.warning(f"Experimental mode is enabled. This is not recommended for production use. Token:{bot_token[:5]}...{bot_token[-5:]}")
+else:
+    bot_token = os.environ.get("BORT_DISCORD_TOKEN")
 if bot_token is None:
     print("Error: BORT_DISCORD_TOKEN environment variable not found.")
     exit(1)
