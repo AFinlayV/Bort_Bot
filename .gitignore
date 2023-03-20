@@ -6,3 +6,5 @@ config4.json
 /gpt3_logs/
 /dreams/
 /Bort_Old_Memories/
+/gpt4chat.log
+/.idea/vcs.xml
