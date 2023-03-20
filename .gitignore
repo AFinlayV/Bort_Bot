@@ -1,5 +1,8 @@
 config4.json
-log/
-nexus/
-nexus_test/
-internal_notes/
+/log/
+/nexus/
+/nexus_test/
+/internal_notes/
+/gpt3_logs/
+/dreams/
+/Bort_Old_Memories/
