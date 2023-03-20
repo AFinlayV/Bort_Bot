@@ -57,12 +57,16 @@ class GPT4Chat:
                 return {
                     "role": log_data["speaker"],
                     "content": log_data["message"]
+                    "time": log_data["time"]
                 }
 
         log_files = os.listdir("log")
         memories = [memory_from_log_file(filename) for filename in log_files]
 
-        memories.sort(key=lambda x: x['time'])  # If you want the most recent memories first
+        memories.sort(key=lambda x: x['time'])  # If you want the most recent memories last
+        # remove the time field from each memory
+        for memory in memories:
+            del memory['time']
         return memories[:self.memory_limit]
 
     def num_tokens_from_messages(self, messages):
