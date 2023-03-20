@@ -56,7 +56,7 @@ class GPT4Chat:
                 log_data = json.load(log_file)
                 return {
                     "role": log_data["speaker"],
-                    "content": log_data["message"]
+                    "content": log_data["message"],
                     "time": log_data["time"]
                 }
 
