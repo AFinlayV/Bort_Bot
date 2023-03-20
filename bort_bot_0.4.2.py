@@ -21,6 +21,7 @@ logging.basicConfig(
 )
 logging.info("Starting GPT4Chat...")
 
+
 class GPT4Chat:
     def __init__(self):
         logging.basicConfig(level=logging.INFO)
@@ -30,14 +31,12 @@ class GPT4Chat:
         os.makedirs("log", exist_ok=True)
         self.memory_limit = 30
         self.respond_to_all_channels = self.config["respond_to_all_channels"]
-        self.token_count = self.num_tokens_from_messages([self.conversation_memory[-1]])
         self.model = "gpt-4"
-        self.token_count = self.num_tokens_from_messages([self.conversation_memory[-1]])
-
         # Load recent memories on startup
         self.conversation_memory.extend(self.load_recent_memories())
         if self.config["experimental"]:
             self.model = "gpt-3.5-turbo"
+        self.token_count = self.num_tokens_from_messages([self.conversation_memory[-1]])
 
     def load_config(self):
         logging.info("Loading config...")
@@ -48,52 +47,62 @@ class GPT4Chat:
             return config
 
 
-    def ensure_token_count(self, message):
-        logging.info("Ensuring token count...")
-        if self.token_count > self.config["prompt_token_limit"]:
-            logging.info("Token count exceeded, reducing conversation memory by removing oldest messages...")
-            self.conversation_memory.append({"role": "system", "content": self.config["system_prompt"]})
-            self.token_count = self.num_tokens_from_messages([self.conversation_memory[-1]])
-        self.token_count += self.num_tokens_from_messages([message])
 
     def load_recent_memories(self):
         logging.info("Loading recent memories...")
-        memories = []
-        for filename in os.listdir("log"):
+
+        def memory_from_log_file(filename):
             with open(os.path.join("log", filename), "r") as log_file:
-                memories.append(json.load(log_file))
-        memories.sort(key=lambda x: x["time"])
-        # Format the memories to match the format of the conversation memory
-        for memory in memories:
-            memory["role"] = memory["speaker"]
-            memory["content"] = memory["message"]
-            del memory["speaker"]
-            del memory["message"]
-            del memory["time"]
-            del memory["timestring"]
-            del memory["uuid"]
+                log_data = json.load(log_file)
+                return {
+                    "role": log_data["speaker"],
+                    "content": log_data["message"]
+                }
+
+        log_files = os.listdir("log")
+        memories = [memory_from_log_file(filename) for filename in log_files]
+
+        memories.sort(key=lambda x: x['time'])  # If you want the most recent memories first
         return memories[:self.memory_limit]
 
-    def num_tokens_from_messages(self, messages, model="gpt-4"):
+    def num_tokens_from_messages(self, messages):
         try:
-            encoding = tiktoken.encoding_for_model(model)
+            encoding = tiktoken.encoding_for_model(self.model)
         except KeyError:
             encoding = tiktoken.get_encoding("cl100k_base")
-        if model == "gpt-4":
-            num_tokens = 0
+        try:
+            num_tokens = 2  # Start with 2 tokens for the initial token count
             for message in messages:
-                num_tokens += 4
+                num_tokens += 4  # Add 4 tokens for each message
                 for key, value in message.items():
                     num_tokens += len(encoding.encode(value))
-                    if key == "name":
-                        num_tokens += -1
-            num_tokens += 2
             return num_tokens
-        else:
-            raise NotImplementedError(
-                f"""num_tokens_from_messages() is not presently implemented for model {model}.
-    See https://github.com/openai/openai-python/blob/main/chatml.md for information on how messages are converted to tokens.""")
+        except Exception as e:
+            logging.error(e)
+            return 0
 
+    def ensure_token_count(self, message):
+        logging.info("Ensuring token count...")
+
+        # Calculate the token count for the new message
+        new_message_tokens = self.num_tokens_from_messages([message])
+
+        # Recalculate the total token count based on the current conversation memory
+        self.token_count = self.num_tokens_from_messages(self.conversation_memory)
+
+        # Check if the new token count would exceed the limit
+        if self.token_count + new_message_tokens > self.config["prompt_token_limit"]:
+            logging.info("Token count exceeded, reducing conversation memory by removing oldest non-system messages...")
+
+            # Remove the oldest non-system messages until the token count is below the limit
+            while self.token_count + new_message_tokens > self.config["prompt_token_limit"]:
+                # Skip the first item (system prompt) when removing messages
+                removed_message = self.conversation_memory.pop(1)
+                removed_tokens = self.num_tokens_from_messages([removed_message])
+                self.token_count -= removed_tokens
+
+        # Add the new message tokens to the total token count
+        self.token_count += new_message_tokens
     def save_message_to_log(self, message, speaker):
         logging.info("Saving message to log...")
         log_entry = {
@@ -150,6 +159,7 @@ class GPT4Chat:
             else:
                 logging.info("Failed to get GPT response.")
                 return f"I'm sorry, The server returned an error. Please try again. Error: {e}"
+
     def update_conversation_memory(self, role, content):
         logging.info("Updating conversation memory...")
         self.conversation_memory.append({"role": role, "content": content})
@@ -170,7 +180,6 @@ if gpt4_chat.config["experimental"]:
 else:
     CHAN_ID = gpt4_chat.config["main_channel"]
     logging.info(f"Using production mode. {CHAN_ID}")
-
 
 
 def split_response(text, max_length):
@@ -233,10 +242,10 @@ async def bort(ctx, *, question):
         await generate_and_send_response(ctx, ctx.message.content)
 
 
-
 if gpt4_chat.config["experimental"]:
     bot_token = os.environ.get("SANDBOX_DISCORD_TOKEN")
-    logging.warning(f"Experimental mode is enabled. This is not recommended for production use. Token:{bot_token[:5]}...{bot_token[-5:]}")
+    logging.warning(
+        f"Experimental mode is enabled. This is not recommended for production use. Token:{bot_token[:5]}...{bot_token[-5:]}")
 else:
     bot_token = os.environ.get("BORT_DISCORD_TOKEN")
 if bot_token is None:
