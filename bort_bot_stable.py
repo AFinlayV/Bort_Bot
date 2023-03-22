@@ -55,7 +55,7 @@ class GPT4Chat:
                 logging.info(f"{key}: {value}")
             return config
 
-    def load_recent_memories(self, ensure_memory_token_count):
+    def load_recent_memories(self):
         logging.info("Loading recent memories...")
 
         def memory_from_log_file(filename):
@@ -77,7 +77,7 @@ class GPT4Chat:
         most_recent_memories = []
 
         for memory in memories:
-            if ensure_memory_token_count(memory):
+            if self.ensure_memory_token_count(memory):  # Call the method directly
                 if len(most_recent_memories) < self.memory_limit:
                     most_recent_memories.append(memory)
                 else:
