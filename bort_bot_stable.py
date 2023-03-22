@@ -46,7 +46,7 @@ class GPT4Chat:
                 logging.info(f"{key}: {value}")
             return config
 
-    def load_recent_memories(self):
+    def load_recent_memories(self, ensure_token_count):
         logging.info("Loading recent memories...")
 
         def memory_from_log_file(filename):
@@ -65,7 +65,14 @@ class GPT4Chat:
         memories.sort(key=lambda x: x['time'], reverse=True)
 
         # Get the most recent memories
-        most_recent_memories = memories[:self.memory_limit]
+        most_recent_memories = []
+
+        for memory in memories:
+            ensure_token_count(memory)
+            if len(most_recent_memories) < self.memory_limit:
+                most_recent_memories.append(memory)
+            else:
+                break
 
         # Reverse the most recent memories to have the oldest at the beginning
         most_recent_memories.reverse()
