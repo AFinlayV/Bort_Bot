@@ -41,6 +41,9 @@ class GPT4Chat:
     def ensure_memory_token_count(self, memory):
         logging.info("Ensuring memory token count...")
 
+        # Print the memory content
+        print(f"Memory: {memory}")
+
         # Calculate the token count for the new memory
         new_memory_tokens = self.num_tokens_from_messages([memory])
 
