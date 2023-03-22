@@ -1,4 +1,3 @@
-config4.json
 /log/
 /nexus/
 /nexus_test/
@@ -8,3 +7,4 @@ config4.json
 /Bort_Old_Memories/
 /gpt4chat.log
 /.idea/vcs.xml
+/config4.json
