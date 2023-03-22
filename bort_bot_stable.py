@@ -23,6 +23,7 @@ logging.info("Starting GPT4Chat...")
 
 
 class GPT4Chat:
+
     def __init__(self):
         logging.basicConfig(level=logging.INFO)
         self.config = self.load_config()
