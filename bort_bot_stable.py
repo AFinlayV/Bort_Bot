@@ -116,27 +116,22 @@ class GPT4Chat:
         # Calculate the token count for the new message
         new_message_tokens = self.num_tokens_from_messages([message])
 
+        if new_message_tokens > self.config["prompt_token_limit"]:
+            logging.warning("The new message itself exceeds the token limit. Skipping the message.")
+            return
+
         # Recalculate the total token count based on the current conversation memory
         self.token_count = self.num_tokens_from_messages(self.conversation_memory)
 
-        # Check if the new token count would exceed the limit
-        if self.token_count + new_message_tokens > self.config["prompt_token_limit"]:
-            logging.info("Token count exceeded, reducing conversation memory by removing oldest non-system messages...")
-
-            # Remove the oldest non-system messages until the token count is below the limit
-            safety_counter = 0  # Add a safety counter to prevent infinite loops
-            max_retries = len(
-                self.conversation_memory) - 1  # Set the maximum number of retries to the number of messages excluding the system prompt
-
-            while self.token_count + new_message_tokens > self.config[
-                "prompt_token_limit"] and safety_counter < max_retries:
-                # Skip the first item (system prompt) when removing messages
-                removed_message = self.conversation_memory.pop(1)
+        # Iterate over non-system messages in the conversation memory, removing them until the token count is below the limit
+        for i, current_message in enumerate(self.conversation_memory[1:],
+                                            start=1):  # Skip the first item (system prompt)
+            if self.token_count + new_message_tokens > self.config["prompt_token_limit"]:
+                removed_message = self.conversation_memory.pop(i)
                 removed_tokens = self.num_tokens_from_messages([removed_message])
                 self.token_count -= removed_tokens
-
-                # Increment the safety counter
-                safety_counter += 1
+            else:
+                break
 
         # Add the new message tokens to the total token count
         self.token_count += new_message_tokens
