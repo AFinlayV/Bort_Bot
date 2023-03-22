@@ -37,7 +37,6 @@ class GPT4Chat:
         if self.config["experimental"]:
             self.model = "gpt-3.5-turbo"
         self.token_count = self.num_tokens_from_messages([self.conversation_memory[-1]])
-        recent_memories = self.load_recent_memories(self.ensure_memory_token_count)
 
     def ensure_memory_token_count(self, memory):
         logging.info("Ensuring memory token count...")
@@ -56,17 +55,8 @@ class GPT4Chat:
                 logging.info(f"{key}: {value}")
             return config
 
-    def load_recent_memories(self):
+    def load_recent_memories(self, ensure_memory_token_count):
         logging.info("Loading recent memories...")
-
-        def ensure_memory_token_count(memory):
-            logging.info("Ensuring memory token count...")
-
-            # Calculate the token count for the new memory
-            new_memory_tokens = self.num_tokens_from_messages([memory])
-
-            # Check if the new token count would exceed the limit
-            return self.token_count + new_memory_tokens <= self.config["prompt_token_limit"]
 
         def memory_from_log_file(filename):
             with open(os.path.join("log", filename), "r") as log_file:
