@@ -99,11 +99,18 @@ class GPT4Chat:
             logging.info("Token count exceeded, reducing conversation memory by removing oldest non-system messages...")
 
             # Remove the oldest non-system messages until the token count is below the limit
-            while self.token_count + new_message_tokens > self.config["prompt_token_limit"]:
+            safety_counter = 0  # Add a safety counter to prevent infinite loops
+            max_retries = len(
+                self.conversation_memory) - 1  # Set the maximum number of retries to the number of messages excluding the system prompt
+
+            while self.token_count + new_message_tokens > self.config[
+                "prompt_token_limit"] and safety_counter < max_retries:
                 # Skip the first item (system prompt) when removing messages
                 removed_message = self.conversation_memory.pop(1)
                 removed_tokens = self.num_tokens_from_messages([removed_message])
                 self.token_count -= removed_tokens
+                # Increment the safety counter
+                safety_counter += 1
 
         # Add the new message tokens to the total token count
         self.token_count += new_message_tokens
