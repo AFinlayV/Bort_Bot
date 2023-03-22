@@ -46,8 +46,6 @@ class GPT4Chat:
                 logging.info(f"{key}: {value}")
             return config
 
-
-
     def load_recent_memories(self):
         logging.info("Loading recent memories...")
 
@@ -63,11 +61,19 @@ class GPT4Chat:
         log_files = os.listdir("log")
         memories = [memory_from_log_file(filename) for filename in log_files]
 
-        memories.sort(key=lambda x: x['time'])  # If you want the most recent memories last
-        # remove the time field from each memory
-        for memory in memories:
+        # Sort memories by time in descending order
+        memories.sort(key=lambda x: x['time'], reverse=True)
+
+        # Get the most recent memories
+        most_recent_memories = memories[:self.memory_limit]
+
+        # Reverse the most recent memories to have the oldest at the beginning
+        most_recent_memories.reverse()
+
+        # Remove the time field from each memory
+        for memory in most_recent_memories:
             del memory['time']
-        return memories[:self.memory_limit]
+        return most_recent_memories
 
     def num_tokens_from_messages(self, messages):
         try:
@@ -109,11 +115,13 @@ class GPT4Chat:
                 removed_message = self.conversation_memory.pop(1)
                 removed_tokens = self.num_tokens_from_messages([removed_message])
                 self.token_count -= removed_tokens
+
                 # Increment the safety counter
                 safety_counter += 1
 
         # Add the new message tokens to the total token count
         self.token_count += new_message_tokens
+
     def save_message_to_log(self, message, speaker):
         logging.info("Saving message to log...")
         log_entry = {
