@@ -33,7 +33,7 @@ class GPT4Chat:
         self.respond_to_all_channels = self.config["respond_to_all_channels"]
         self.model = "gpt-4"
         # Load recent memories on startup
-        self.conversation_memory.extend(self.load_recent_memories(self.ensure_memory_token_count))
+        self.conversation_memory.extend(self.load_recent_memories())
         if self.config["experimental"]:
             self.model = "gpt-3.5-turbo"
         self.token_count = self.num_tokens_from_messages([self.conversation_memory[-1]])
