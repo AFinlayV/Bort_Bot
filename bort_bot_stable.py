@@ -37,6 +37,16 @@ class GPT4Chat:
         if self.config["experimental"]:
             self.model = "gpt-3.5-turbo"
         self.token_count = self.num_tokens_from_messages([self.conversation_memory[-1]])
+        recent_memories = self.load_recent_memories(self.ensure_memory_token_count)
+
+    def ensure_memory_token_count(self, memory):
+        logging.info("Ensuring memory token count...")
+
+        # Calculate the token count for the new memory
+        new_memory_tokens = self.num_tokens_from_messages([memory])
+
+        # Check if the new token count would exceed the limit
+        return self.token_count + new_memory_tokens <= self.config["prompt_token_limit"]
 
     def load_config(self):
         logging.info("Loading config...")
@@ -48,6 +58,15 @@ class GPT4Chat:
 
     def load_recent_memories(self):
         logging.info("Loading recent memories...")
+
+        def ensure_memory_token_count(memory):
+            logging.info("Ensuring memory token count...")
+
+            # Calculate the token count for the new memory
+            new_memory_tokens = self.num_tokens_from_messages([memory])
+
+            # Check if the new token count would exceed the limit
+            return self.token_count + new_memory_tokens <= self.config["prompt_token_limit"]
 
         def memory_from_log_file(filename):
             with open(os.path.join("log", filename), "r") as log_file:
@@ -68,11 +87,11 @@ class GPT4Chat:
         most_recent_memories = []
 
         for memory in memories:
-            self.ensure_token_count(memory)
-            if len(most_recent_memories) < self.memory_limit:
-                most_recent_memories.append(memory)
-            else:
-                break
+            if ensure_memory_token_count(memory):
+                if len(most_recent_memories) < self.memory_limit:
+                    most_recent_memories.append(memory)
+                else:
+                    break
 
         # Reverse the most recent memories to have the oldest at the beginning
         most_recent_memories.reverse()
