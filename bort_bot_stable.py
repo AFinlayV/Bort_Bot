@@ -32,7 +32,7 @@ class GPT4Chat:
         os.makedirs("log", exist_ok=True)
         self.memory_limit = 30
         self.respond_to_all_channels = self.config["respond_to_all_channels"]
-        self.model = "gpt-4"
+        self.model = "gpt-3.5-turbo"
         if self.config["experimental"]:
             self.model = "gpt-3.5-turbo"
         self.token_count = self.num_tokens_from_messages([self.conversation_memory[-1]])
