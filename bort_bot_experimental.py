@@ -38,18 +38,6 @@ class GPT4Chat:
         self.token_count = self.num_tokens_from_messages([self.conversation_memory[-1]])
         self.conversation_memory.extend(self.load_recent_memories())
 
-    def ensure_memory_token_count(self, memory):
-        logging.info("Ensuring memory token count...")
-
-        # Print the memory content
-        print(f"Memory: {memory}")
-
-        # Calculate the token count for the new memory
-        new_memory_tokens = self.num_tokens_from_messages([memory])
-
-        # Check if the new token count would exceed the limit
-        return self.token_count + new_memory_tokens <= self.config["prompt_token_limit"]
-
     def load_config(self):
         logging.info("Loading config...")
         with open("config4.json", "r") as config_file:
@@ -77,14 +65,7 @@ class GPT4Chat:
         memories.sort(key=lambda x: x['time'], reverse=True)
 
         # Get the most recent memories
-        most_recent_memories = []
-
-        for memory in memories:
-            if self.ensure_memory_token_count(memory):  # Call the method directly
-                if len(most_recent_memories) < self.memory_limit:
-                    most_recent_memories.append(memory)
-                else:
-                    break
+        most_recent_memories = memories[:self.memory_limit]
 
         # Reverse the most recent memories to have the oldest at the beginning
         most_recent_memories.reverse()
@@ -94,47 +75,15 @@ class GPT4Chat:
             del memory['time']
         return most_recent_memories
 
+    def num_tokens_from_string(string: str, encoding_name: str) -> int:
+        """Returns the number of tokens in a text string."""
+        encoding = tiktoken.get_encoding(encoding_name)
+        num_tokens = len(encoding.encode(string))
+        return num_tokens
+
     def num_tokens_from_messages(self, messages):
-        try:
-            encoding = tiktoken.encoding_for_model(self.model)
-        except KeyError:
-            encoding = tiktoken.get_encoding("cl100k_base")
-        try:
-            num_tokens = 2  # Start with 2 tokens for the initial token count
-            for message in messages:
-                num_tokens += 4  # Add 4 tokens for each message
-                for key, value in message.items():
-                    num_tokens += len(encoding.encode(value))
-            return num_tokens
-        except Exception as e:
-            logging.error(e)
-            return 0
-
-    def ensure_token_count(self, message):
-        logging.info("Ensuring token count...")
-
-        # Calculate the token count for the new message
-        new_message_tokens = self.num_tokens_from_messages([message])
-
-        if new_message_tokens > self.config["prompt_token_limit"]:
-            logging.warning("The new message itself exceeds the token limit. Skipping the message.")
-            return
-
-        # Recalculate the total token count based on the current conversation memory
-        self.token_count = self.num_tokens_from_messages(self.conversation_memory)
-
-        # Iterate over non-system messages in the conversation memory, removing them until the token count is below the limit
-        for i, current_message in enumerate(self.conversation_memory[1:],
-                                            start=1):  # Skip the first item (system prompt)
-            if self.token_count + new_message_tokens > self.config["prompt_token_limit"]:
-                removed_message = self.conversation_memory.pop(i)
-                removed_tokens = self.num_tokens_from_messages([removed_message])
-                self.token_count -= removed_tokens
-            else:
-                break
-
-        # Add the new message tokens to the total token count
-        self.token_count += new_message_tokens
+        logging.info("Getting number of tokens from messages...")
+        return sum([self.num_tokens_from_string(message) for message in messages])
 
     def save_message_to_log(self, message, speaker):
         logging.info("Saving message to log...")
