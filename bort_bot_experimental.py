@@ -222,15 +222,8 @@ async def bort(ctx, *, question):
         await generate_and_send_response(ctx, ctx.message.content)
 
 
-if gpt4_chat.config["experimental"]:
-    bot_token = os.environ.get("SANDBOX_DISCORD_TOKEN")
-    logging.warning(
-        f"Experimental mode is enabled. This is not recommended for production use. Token:{bot_token[:5]}...{bot_token[-5:]}")
-else:
-    bot_token = os.environ.get("BORT_DISCORD_TOKEN")
-if bot_token is None:
-    print("Error: BORT_DISCORD_TOKEN environment variable not found.")
-    exit(1)
+bot_token = os.environ.get("BORT_DISCORD_TOKEN")
+print(bot_token[:5] + "..." + bot_token[-5:])
 
 # Run the bot with your token
 bot.run(bot_token)
